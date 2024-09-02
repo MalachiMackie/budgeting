@@ -1,11 +1,15 @@
-use std::time::Duration;
+
+mod payees;
+mod transactions;
 
 use axum::{
-    body::Bytes, extract::{MatchedPath, Request}, http::HeaderMap, response::Response, routing::get, Router
+    extract::{MatchedPath, Request}, routing::get, Router
 };
-use tower_http::{classify::{ServerErrorsFailureClass, SharedClassifier}, trace::{HttpMakeClassifier, TraceLayer}};
-use tracing::{info_span, Span};
+use payees::get_payees;
+use tower_http::trace::TraceLayer;
+use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use transactions::get_transactions;
 
 #[tokio::main]
 async fn main() {
@@ -13,7 +17,8 @@ async fn main() {
 
     // build our application with a single route
     let app = Router::new()
-        .route("/", get(hello_world))
+        .route("/transactions", get(get_transactions))
+        .route("/payees", get(get_payees))
         .layer(TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
                     // Log the matched route's path (with placeholders not filled in).
@@ -37,10 +42,6 @@ async fn main() {
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
 
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn hello_world() -> &'static str {
-    "Hello, World!"
 }
 
 fn init_logger() {
