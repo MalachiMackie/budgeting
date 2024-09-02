@@ -3,9 +3,10 @@ mod payees;
 mod transactions;
 
 use axum::{
-    extract::{MatchedPath, Request}, routing::get, Router
+    extract::{MatchedPath, Request}, http::StatusCode, response::IntoResponse, routing::get, Router
 };
 use payees::get_payees;
+use sqlx::MySqlPool;
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -15,10 +16,21 @@ use transactions::get_transactions;
 async fn main() {
     init_logger();
 
+    dotenvy::dotenv().unwrap();
+
+    let db_url = std::env::var("DATABASE_URL").unwrap();
+
+    tracing::info!("Connecting to db at {db_url}");
+
+    let connection_pool = MySqlPool::connect(&db_url)
+        .await
+        .expect("to be able to connect to the database");
+
     // build our application with a single route
     let app = Router::new()
         .route("/transactions", get(get_transactions))
         .route("/payees", get(get_payees))
+        .with_state(connection_pool)
         .layer(TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
                     // Log the matched route's path (with placeholders not filled in).
@@ -39,7 +51,7 @@ async fn main() {
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
-    tracing::debug!("listening on {}", listener.local_addr().unwrap());
+    tracing::info!("listening on {}", listener.local_addr().unwrap());
 
     axum::serve(listener, app).await.unwrap();
 }
@@ -49,7 +61,7 @@ fn init_logger() {
                 // axum logs rejections from built-in extractors with the `axum::rejection`
                 // target, at `TRACE` level. `axum::rejection=trace` enables showing those events
                 format!(
-                    "{}=debug,tower_http=trace,axum::rejection=trace",
+                    "{}=debug,tower_http=trace,axum::rejection=trace,sqlx=debug",
                     env!("CARGO_CRATE_NAME")
                 )
                 .into()
@@ -60,3 +72,24 @@ fn init_logger() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 }
+
+pub struct AppError(anyhow::Error);
+
+impl<E> From<E> for AppError
+    where E : Into<anyhow::Error>
+{
+    fn from(value: E) -> Self {
+        Self(value.into())
+    }
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {}", self.0)
+        ).into_response()
+    }
+}
+
+

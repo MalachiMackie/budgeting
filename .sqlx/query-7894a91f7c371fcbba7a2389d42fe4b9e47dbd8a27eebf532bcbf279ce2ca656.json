@@ -1,0 +1,54 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id, amount_dollars, amount_cents, payee_id FROM Transactions",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "amount_dollars",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "amount_cents",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 2
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "payee_id",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 128
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7894a91f7c371fcbba7a2389d42fe4b9e47dbd8a27eebf532bcbf279ce2ca656"
+}
