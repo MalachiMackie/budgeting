@@ -12,7 +12,19 @@ pub struct Payee<'a>
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct PayeeId(pub Uuid);
 
+impl PayeeId {
+    pub fn new() -> Self {
+        PayeeId(Uuid::new_v4())
+    }
+}
+
 pub async fn get_payees<'a>() -> Json<Box<[Payee<'a>]>>
 {
-    Json(Box::new([]))
+    Json(Box::new([
+        Payee
+        {
+            id: PayeeId::new(),
+            name: "hello"
+        }
+    ]))
 }

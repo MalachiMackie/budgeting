@@ -16,7 +16,21 @@ pub struct Transaction
 #[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct TransactionId(pub Uuid);
 
+impl TransactionId {
+    pub fn new() -> Self
+    {
+        Self(Uuid::new_v4())
+    }
+}
+
 pub async fn get_transactions() -> Json<Box<[Transaction]>>
 {
-    Json(Box::new([]))
+    Json(Box::new([
+        Transaction {
+            id: TransactionId::new(),
+            amount_cents: 0,
+            amount_dollars: 100,
+            payee_id: PayeeId::new()
+        }
+    ]))
 }
