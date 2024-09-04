@@ -1,0 +1,2 @@
+ALTER TABLE Transactions
+ADD COLUMN `time` TIMESTAMP NOT NULL;

@@ -5,6 +5,7 @@ type Transaction = {
     payee_id: string;
     amount_dollars: number;
     amount_cents: number;
+    time: string;
 };
 
 type Payee = {
