@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            INSERT INTO Transactions (id, payee_id, amount_dollars, amount_cents)\n            VALUE (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8332d167b27a172ee3b0f329da1c7adde73a5b2b8767abccf1af507878d102ed"
+}

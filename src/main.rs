@@ -5,12 +5,12 @@ mod transactions;
 use axum::{
     extract::{MatchedPath, Request}, http::StatusCode, response::IntoResponse, routing::get, Router
 };
-use payees::get_payees;
+use payees::{create_payee, get_payees};
 use sqlx::MySqlPool;
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use transactions::get_transactions;
+use transactions::{create_transaction, get_transactions};
 
 #[tokio::main]
 async fn main() {
@@ -28,8 +28,8 @@ async fn main() {
 
     // build our application with a single route
     let app = Router::new()
-        .route("/transactions", get(get_transactions))
-        .route("/payees", get(get_payees))
+        .route("/transactions", get(get_transactions).post(create_transaction))
+        .route("/payees", get(get_payees).post(create_payee))
         .with_state(connection_pool)
         .layer(TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
@@ -73,22 +73,32 @@ fn init_logger() {
         .init();
 }
 
-pub struct AppError(anyhow::Error);
+pub enum AppError
+{
+    NotFound(anyhow::Error),
+    InternalServerError(anyhow::Error)
+}
 
 impl<E> From<E> for AppError
     where E : Into<anyhow::Error>
 {
     fn from(value: E) -> Self {
-        Self(value.into())
+        Self::InternalServerError(value.into())
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.0)
-        ).into_response()
+        match self {
+            AppError::InternalServerError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Something went rong: {}", e)
+            ),
+            AppError::NotFound(e) => (
+                StatusCode::NOT_FOUND,
+                format!("{e}")
+            )
+        }.into_response()
     }
 }
 

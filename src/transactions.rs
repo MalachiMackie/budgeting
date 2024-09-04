@@ -1,9 +1,10 @@
+use anyhow::{anyhow, bail};
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::{payees::PayeeId, AppError};
+use crate::{payees::{get_payee, PayeeId}, AppError};
 
 #[derive(Deserialize, Serialize)]
 pub struct Transaction
@@ -56,3 +57,33 @@ pub async fn get_transactions(State(db_pool): State<MySqlPool>) -> Result<Json<B
 
     Ok(Json(transactions.into_boxed_slice()))
 }
+
+#[derive(Deserialize)]
+pub struct CreateTransactionRequest
+{
+    payee_id: Uuid,
+    amount_dollars: i32,
+    amount_cents: u8
+}
+
+pub async fn create_transaction(
+    State(db_pool): State<MySqlPool>,
+    Json(request): Json<CreateTransactionRequest>)
+    -> Result<Json<Uuid>, AppError> {
+        let id = TransactionId::new();
+
+        let payee = get_payee(PayeeId(request.payee_id), &db_pool)
+            .await?;
+
+        if payee.is_none() {
+            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")));
+        }
+
+        sqlx::query!(r"
+            INSERT INTO Transactions (id, payee_id, amount_dollars, amount_cents)
+            VALUE (?, ?, ?, ?)", id.0.as_simple(), request.payee_id.as_simple(), request.amount_dollars, request.amount_cents)
+            .execute(&db_pool)
+            .await?;
+
+        Ok(Json(id.0))
+    }

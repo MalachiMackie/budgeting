@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Payees(id, name) VALUE (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8fde6b0a39c11bc297dfed8cc88aaa3c5ce711ef1627c03b4d1ce9faee134d76"
+}
