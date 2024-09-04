@@ -2,12 +2,14 @@
 mod payees;
 mod transactions;
 
+use std::env::{current_dir, current_exe};
+
 use axum::{
     extract::{MatchedPath, Request}, http::StatusCode, response::IntoResponse, routing::get, Router
 };
 use payees::{create_payee, get_payees};
 use sqlx::MySqlPool;
-use tower_http::trace::TraceLayer;
+use tower_http::{services::{ServeDir, ServeFile}, trace::TraceLayer};
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use transactions::{create_transaction, get_transactions};
@@ -26,10 +28,15 @@ async fn main() {
         .await
         .expect("to be able to connect to the database");
 
+    let current_exe_val = current_exe().unwrap();
+    let dist_folder = format!("{}/dist", current_exe_val.parent().unwrap().display());
+
     // build our application with a single route
     let app = Router::new()
-        .route("/transactions", get(get_transactions).post(create_transaction))
-        .route("/payees", get(get_payees).post(create_payee))
+        .route("/api/transactions", get(get_transactions).post(create_transaction))
+        .route("/api/payees", get(get_payees).post(create_payee))
+        .nest_service("/assets", ServeDir::new(format!("{dist_folder}/assets")))
+        .nest_service("/", ServeFile::new(format!("{dist_folder}/index.html")))
         .with_state(connection_pool)
         .layer(TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
