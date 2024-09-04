@@ -7,18 +7,32 @@ type Transaction = {
     amount_cents: number;
 };
 
+type Payee = {
+    id: string;
+    name: string;
+}
+
 export default function TransactionList(): JSX.Element {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [payees, setPayees] = useState<Payee[]>([]);
 
     useEffect(() => {
-        let promise = async () => {
+        let loadTransactions = async () => {
             let result = await fetch("http://localhost:3000/api/transactions");
-            let json = await result.json()
+            let json = await result.json();
             setTransactions(json as Transaction[]);
         }
+        let loadPayees = async () => {
+            let result = await fetch("http://localhost:3000/api/payees");
+            let json = await result.json();
+            setPayees(json as Payee[]);
+        }
 
-        void promise();
+        void loadTransactions();
+        void loadPayees();
     }, []);
 
-    return <>{transactions.map((x) => <div>{x.id}: ${x.amount_dollars}.{x.amount_cents.toFixed(2)}</div>)}</>
+    let payeesMap = new Map(payees.map(x => [x.id, x]))
+
+    return <>{transactions.map((x) => <div>{x.id}: ${x.amount_dollars}.{x.amount_cents.toFixed(2)} to {payeesMap.get(x.payee_id)?.name}</div>)}</>
 }
