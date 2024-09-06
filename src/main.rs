@@ -2,7 +2,7 @@
 mod payees;
 mod transactions;
 
-use std::env::{current_dir, current_exe};
+use std::env::current_exe;
 
 use axum::{
     extract::{MatchedPath, Request}, http::StatusCode, response::IntoResponse, routing::get, Router

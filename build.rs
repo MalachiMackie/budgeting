@@ -1,4 +1,4 @@
-use std::{fs::{create_dir, read_dir, remove_dir, remove_dir_all}, process::{Command, ExitStatus}};
+use std::{fs::{create_dir, remove_dir_all}, process::Command};
 use fs_extra::{copy_items, dir::CopyOptions};
 
 fn main() {
@@ -25,9 +25,6 @@ fn main() {
             &["budgeting-ui/dist"],
              format!("{out_dir}"),
              &CopyOptions::new()).expect("copy to succeed");
-
-        // std::fs::copy("budgeting-ui/dist", &out_dir)
-        //     .expect("copy dist to work");
 
         // success
         return;
