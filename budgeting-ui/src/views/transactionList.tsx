@@ -1,4 +1,5 @@
-import { Button, DataTableSkeleton, DatePicker, DatePickerInput, Dropdown, NumberInput, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@carbon/react";
+import { Button, NumberInput, Select, Table } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
 import { useEffect, useState } from "react"
 
 type Transaction = {
@@ -45,7 +46,7 @@ export default function TransactionList(): JSX.Element {
     let payeesMap = new Map(payees.map(x => [x.id, x]))
 
     if (loading) {
-        return <DataTableSkeleton />
+        return <>Loading...</>
     }
 
     const headers  =[{key: 'time', header: "Time"}, {key: 'amount', header: "Amount"}, {key: 'payee', header: 'Payee'}];
@@ -54,25 +55,27 @@ export default function TransactionList(): JSX.Element {
         await fetch("http://localhost:3000/api/transactions", {method: 'POST', body: JSON.stringify(x), headers: {"Content-Type": "application/json"}});
     }
 
-    const sortTransactions = (a: Transaction, b: Transaction): number => {
+    const compareTransactions = (a: Transaction, b: Transaction): number => {
         // todo: within the same day, compare by amount
-        return a.time.localeCompare(b.time);
+
+        // sort descending time
+        return b.time.localeCompare(a.time);
     }
 
-    return <Table size="sm">
-        <TableHead>
-            <TableRow>
-                {headers.map(x => <TableHeader key={x.key} id={x.key}>{x.header}</TableHeader>)}
-            </TableRow>
-        </TableHead>
-        <TableBody>
+    return <Table>
+        <Table.Thead>
+            <Table.Tr>
+                {headers.map(x => <Table.Th key={x.key}>{x.header}</Table.Th>)}
+            </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
             <NewTransactionRow onComplete={() => refresh()} save={saveTransaction} payees={payees} />
-            {[...transactions].sort(sortTransactions).map(x => <TableRow key={x.id}>
-                <TableCell>{new Date(x.time).toLocaleDateString()}</TableCell>
-                <TableCell>${(x.amount_dollars + ((x.amount_cents * Math.sign(x.amount_dollars)) / 100)).toFixed(2)}</TableCell>
-                <TableCell>{payeesMap.get(x.payee_id)!.name}</TableCell>
-            </TableRow>)}
-        </TableBody>
+            {[...transactions].sort(compareTransactions).map(x => <Table.Tr>
+                <Table.Td>{new Date(x.time).toDateString()}</Table.Td>
+                <Table.Td>${(x.amount_dollars + ((x.amount_cents * Math.sign(x.amount_dollars)) / 100)).toFixed(2)}</Table.Td>
+                <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
+            </Table.Tr>)}
+        </Table.Tbody>
     </Table>
 }
 
@@ -115,22 +118,23 @@ function NewTransactionRow({payees, save, onComplete}: {payees: Payee[], save: (
         }
     }
 
-    const dropdownItems = payees.map(x => ({id: x.id, value: x.id, label: x.name}));
-
-    return <TableRow>
-        <TableCell>
-            <DatePicker onChange={x => x.length == 1 && setDate(x[0])} value={date} datePickerType="single" >
-                <DatePickerInput size="sm" id={"date"} labelText={undefined} />
-            </DatePicker>
-        </TableCell>
-        <TableCell>
-            <NumberInput value={amount} onChange={(_, {value}) => typeof value === "number" && setAmount(value)} size="sm" id={"amount"} />
-        </TableCell>
-        <TableCell>
+    return <><Table.Tr style={{borderBottom: 0}}>
+        <Table.Td>
+            <DatePickerInput value={date} onChange={x => x && setDate(x)} />
+        </Table.Td>
+        <Table.Td>
+            <NumberInput value={amount} onChange={value => typeof value === "number" && setAmount(value)} />
+        </Table.Td>
+        <Table.Td>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-                <Dropdown onChange={x => x.selectedItem && setPayeeId(x.selectedItem.id)} initialSelectedItem={dropdownItems.find(x => x.id === payeeId)} itemToString={x => x?.label ?? ""} size="sm" id={"payee"} items={dropdownItems} label={""} />
-                <Button onClick={handleSaveClick}>Save</Button>
+                <Select onChange={x => x && setPayeeId(x)} data={payees.map(x => ({value: x.id, label: x.name}))} value={payeeId} />
             </div>
-        </TableCell>
-    </TableRow>;
+        </Table.Td>
+    </Table.Tr>
+    <Table.Tr>
+        <Table.Td colSpan={3}>
+                <Button onClick={handleSaveClick}>Save</Button>
+        </Table.Td>
+    </Table.Tr>
+    </>
 }
