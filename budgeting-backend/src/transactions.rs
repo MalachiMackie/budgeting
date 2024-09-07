@@ -1,5 +1,5 @@
 use axum::{extract::State, Json};
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 use uuid::Uuid;
@@ -11,7 +11,7 @@ pub struct Transaction
 {
     id: TransactionId,
     payee_id: PayeeId,
-    time: DateTime<Utc>,
+    date: NaiveDate,
     amount_dollars: i32,
     amount_cents: u8
 }
@@ -30,7 +30,7 @@ struct TransactionModel
 {
     id: String,
     payee_id: String,
-    time: DateTime<Utc>,
+    date: NaiveDate,
     amount_cents: i32,
     amount_dollars: i32
 }
@@ -41,7 +41,7 @@ impl TryFrom<TransactionModel> for Transaction {
     fn try_from(value: TransactionModel) -> Result<Self, Self::Error> {
         Ok(Self {
             id: TransactionId(value.id.parse()?),
-            time: value.time,
+            date: value.date,
             payee_id: PayeeId(value.payee_id.parse()?),
             amount_cents: value.amount_cents as u8,
             amount_dollars: value.amount_dollars
@@ -51,7 +51,7 @@ impl TryFrom<TransactionModel> for Transaction {
 
 pub async fn get_transactions(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[Transaction]>>, AppError>
 {
-    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount_dollars, time, amount_cents, payee_id FROM Transactions")
+    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount_dollars, date, amount_cents, payee_id FROM Transactions")
         .fetch_all(&db_pool)
         .await?
         .into_iter()
@@ -67,7 +67,7 @@ pub struct CreateTransactionRequest
     payee_id: Uuid,
     amount_dollars: i32,
     amount_cents: u8,
-    time: DateTime<Utc>
+    date: NaiveDate
 }
 
 pub async fn create_transaction(
@@ -84,8 +84,8 @@ pub async fn create_transaction(
         }
 
         sqlx::query!(r"
-            INSERT INTO Transactions (id, payee_id, time, amount_dollars, amount_cents)
-            VALUE (?, ?, ?, ?, ?)", id.0.as_simple(), request.payee_id.as_simple(), request.time, request.amount_dollars, request.amount_cents)
+            INSERT INTO Transactions (id, payee_id, date, amount_dollars, amount_cents)
+            VALUE (?, ?, ?, ?, ?)", id.0.as_simple(), request.payee_id.as_simple(), request.date, request.amount_dollars, request.amount_cents)
             .execute(&db_pool)
             .await?;
 

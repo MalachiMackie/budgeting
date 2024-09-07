@@ -7,7 +7,7 @@ type Transaction = {
     payee_id: string;
     amount_dollars: number;
     amount_cents: number;
-    time: string;
+    date: string;
 };
 
 type Payee = {
@@ -49,7 +49,7 @@ export default function TransactionList(): JSX.Element {
         return <>Loading...</>
     }
 
-    const headers  =[{key: 'time', header: "Time"}, {key: 'amount', header: "Amount"}, {key: 'payee', header: 'Payee'}];
+    const headers  =[{key: 'date', header: "Date"}, {key: 'amount', header: "Amount"}, {key: 'payee', header: 'Payee'}];
 
     const saveTransaction = async (x: CreateTransactionRequest) => {
         await fetch("http://localhost:3000/api/transactions", {method: 'POST', body: JSON.stringify(x), headers: {"Content-Type": "application/json"}});
@@ -58,8 +58,8 @@ export default function TransactionList(): JSX.Element {
     const compareTransactions = (a: Transaction, b: Transaction): number => {
         // todo: within the same day, compare by amount
 
-        // sort descending time
-        return b.time.localeCompare(a.time);
+        // sort descending date
+        return b.date.localeCompare(a.date);
     }
 
     return <Table>
@@ -71,7 +71,7 @@ export default function TransactionList(): JSX.Element {
         <Table.Tbody>
             <NewTransactionRow onComplete={() => refresh()} save={saveTransaction} payees={payees} />
             {[...transactions].sort(compareTransactions).map(x => <Table.Tr>
-                <Table.Td>{new Date(x.time).toDateString()}</Table.Td>
+                <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
                 <Table.Td>${(x.amount_dollars + ((x.amount_cents * Math.sign(x.amount_dollars)) / 100)).toFixed(2)}</Table.Td>
                 <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
             </Table.Tr>)}
@@ -83,7 +83,7 @@ type CreateTransactionRequest = {
     payee_id: string,
     amount_dollars: number,
     amount_cents: number,
-    time: string
+    date: string
 };
 
 function NewTransactionRow({payees, save, onComplete}: {payees: Payee[], save: (x: CreateTransactionRequest) => Promise<void>, onComplete: () => void}): JSX.Element {
@@ -104,7 +104,7 @@ function NewTransactionRow({payees, save, onComplete}: {payees: Payee[], save: (
         const amountCents = Math.trunc(Math.abs((amount - amountDollars)) * 100);
         try {
             await save({
-                time: date.toISOString(),
+                date: formatDate(date),
                 payee_id: payeeId,
                 amount_dollars: amountDollars,
                 amount_cents: amountCents
@@ -137,4 +137,21 @@ function NewTransactionRow({payees, save, onComplete}: {payees: Payee[], save: (
         </Table.Td>
     </Table.Tr>
     </>
+}
+
+function formatDate(date: Date): string {
+    let sb: (string | number)[] = [date.getFullYear(), '-'];
+    const month = date.getMonth() + 1;
+    if (month < 10) {
+        sb.push('0');
+    }
+    sb.push(month, '-');
+
+    const dayOfMonth = date.getDate();
+    if (dayOfMonth < 10) {
+        sb.push('0');
+    }
+    sb.push(dayOfMonth);
+
+    return sb.join('');
 }

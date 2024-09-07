@@ -219,6 +219,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "fs_extra",
+ "http",
  "serde",
  "sqlx",
  "tokio",

@@ -2,11 +2,10 @@
 mod payees;
 mod transactions;
 
-use std::env::current_exe;
-
 use axum::{
-    extract::{MatchedPath, Request}, http::{HeaderMap, HeaderValue, Method, StatusCode}, response::IntoResponse, routing::get, Router
+    extract::{MatchedPath, Request}, http::{HeaderValue, Method, StatusCode}, response::IntoResponse, routing::get, Router
 };
+use http::header::{ACCEPT, CONTENT_TYPE};
 use payees::{create_payee, get_payees};
 use sqlx::MySqlPool;
 use tower::ServiceBuilder;
@@ -32,7 +31,8 @@ async fn main() {
         .expect("to be able to connect to the database");
 
     let mut cors_layer = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST]);
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([ACCEPT, CONTENT_TYPE]);
 
     if &allow_origin == "Any" {
         cors_layer = cors_layer.allow_origin(Any);
