@@ -5,11 +5,12 @@ mod transactions;
 use std::env::current_exe;
 
 use axum::{
-    extract::{MatchedPath, Request}, http::StatusCode, response::IntoResponse, routing::get, Router
+    extract::{MatchedPath, Request}, http::{HeaderMap, HeaderValue, Method, StatusCode}, response::IntoResponse, routing::get, Router
 };
 use payees::{create_payee, get_payees};
 use sqlx::MySqlPool;
-use tower_http::{services::{ServeDir, ServeFile}, trace::TraceLayer};
+use tower::ServiceBuilder;
+use tower_http::{cors::{Any, CorsLayer}, services::{ServeDir, ServeFile}, trace::TraceLayer};
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use transactions::{create_transaction, get_transactions};
@@ -21,6 +22,8 @@ async fn main() {
     dotenvy::dotenv().unwrap();
 
     let db_url = std::env::var("DATABASE_URL").unwrap();
+    let dist_path = std::env::var("FRONTEND_DIST_PATH").unwrap();
+    let allow_origin = std::env::var("CORS_ALLOW_ORIGIN").unwrap();
 
     tracing::info!("Connecting to db at {db_url}");
 
@@ -28,17 +31,24 @@ async fn main() {
         .await
         .expect("to be able to connect to the database");
 
-    let current_exe_val = current_exe().unwrap();
-    let dist_folder = format!("{}/dist", current_exe_val.parent().unwrap().display());
+    let mut cors_layer = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST]);
+
+    if &allow_origin == "Any" {
+        cors_layer = cors_layer.allow_origin(Any);
+    } else {
+        cors_layer = cors_layer.allow_origin(allow_origin.parse::<HeaderValue>().unwrap());
+    }
 
     // build our application with a single route
     let app = Router::new()
         .route("/api/transactions", get(get_transactions).post(create_transaction))
         .route("/api/payees", get(get_payees).post(create_payee))
-        .nest_service("/assets", ServeDir::new(format!("{dist_folder}/assets")))
-        .nest_service("/", ServeFile::new(format!("{dist_folder}/index.html")))
+        .nest_service("/assets", ServeDir::new(format!("{dist_path}/assets")))
+        .nest_service("/", ServeFile::new(format!("{dist_path}/index.html")))
         .with_state(connection_pool)
-        .layer(TraceLayer::new_for_http()
+        .layer(ServiceBuilder::new()
+            .layer(TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
                     // Log the matched route's path (with placeholders not filled in).
                     // Use request.uri() or OriginalUri if you want the real path.
@@ -53,7 +63,9 @@ async fn main() {
                         matched_path,
                         // some_other_field = tracing::field::Empty,
                     )
-                }));
+                }))
+            .layer(cors_layer)
+    );
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
