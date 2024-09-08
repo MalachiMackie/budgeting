@@ -6,7 +6,7 @@ import { createContext, useContext } from "react";
 import { BudgetingApi } from "./api/budgetingApi";
 import TransactionList from "./views/transactionList";
 
-export const BudgetingApiContext = createContext(BudgetingApi);
+export const BudgetingApiContext = createContext<BudgetingApi>(null!);
 
 export function useBudgetingApi(): BudgetingApi {
   return useContext(BudgetingApiContext);
