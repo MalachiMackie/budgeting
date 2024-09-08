@@ -4,6 +4,7 @@ import "@mantine/dates/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import { BudgetingApi } from "./api/budgetingApi";
+import { AppBar } from "./views/AppBar/AppBar";
 import TransactionList from "./views/transactionList";
 
 export const BudgetingApiContext = createContext<BudgetingApi>(null!);
@@ -19,6 +20,7 @@ function App() {
     <MantineProvider>
       <BudgetingApiContext.Provider value={BudgetingApi}>
         <QueryClientProvider client={queryClient}>
+          <AppBar />
           <TransactionList />
         </QueryClientProvider>
       </BudgetingApiContext.Provider>

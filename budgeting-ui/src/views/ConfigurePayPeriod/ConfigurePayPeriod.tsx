@@ -55,7 +55,7 @@ type DateOfMonth =
   | 27
   | 28;
 
-export function CreatePayPeriod(): JSX.Element {
+export function ConfigurePayPeriod(): JSX.Element {
   const [type, setType] = useState<PayPeriod["type"]>("monthly");
   const [dateOfMonth, setDateOfMonth] = useState<DateOfMonth>(1);
   const [lastPayDay, setLastPayDay] = useState<Date>(new Date());
