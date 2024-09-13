@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use axum::{
     extract::{Query, State}, Json
 };
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 use utoipa::{OpenApi, ToSchema};
@@ -22,24 +23,25 @@ const API_TAG: &str = "BankAccounts";
 pub struct BankAccount {
     id: Uuid,
     name: String,
-    initial_amount_dollars: i32,
-    initial_amount_cents: u8,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    initial_amount: Decimal,
     user_id: Uuid,
 }
 
 struct BankAccountDbModel {
     id: String,
     name: String,
-    initial_amount_dollars: i32,
-    initial_amount_cents: i32,
+    initial_amount: Decimal,
     user_id: String,
 }
 
 #[derive(Deserialize, ToSchema)]
 pub struct CreateBankAccountRequest {
     name: String,
-    initial_amount_dollars: i32,
-    initial_amount_cents: u8,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    initial_amount: Decimal,
     user_id: Uuid,
 }
 
@@ -53,8 +55,7 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
         Ok(BankAccount {
             id,
             user_id,
-            initial_amount_dollars: value.initial_amount_dollars,
-            initial_amount_cents: value.initial_amount_cents as u8,
+            initial_amount: value.initial_amount,
             name: value.name,
         })
     }
@@ -73,12 +74,6 @@ pub async fn create_bank_account(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateBankAccountRequest>,
 ) -> Result<Json<Uuid>, AppError> {
-    if request.initial_amount_cents > 99 {
-        return Err(AppError::BadRequest(anyhow!(
-            "Initial Amount Cents must not exceed 99"
-        )));
-    }
-
     if request.name.trim().is_empty() {
         return Err(AppError::BadRequest(anyhow!("Name must not be empty")));
     }
@@ -89,8 +84,8 @@ pub async fn create_bank_account(
 
     let id = Uuid::new_v4();
 
-    sqlx::query!("INSERT INTO BankAccounts (id, name, user_id, initial_amount_dollars, initial_amount_cents) VALUE(?, ?, ?, ?, ?)",
-        id.as_simple(), request.name, request.user_id.as_simple(), request.initial_amount_dollars, request.initial_amount_cents
+    sqlx::query!("INSERT INTO BankAccounts (id, name, user_id, initial_amount) VALUE(?, ?, ?, ?)",
+        id.as_simple(), request.name, request.user_id.as_simple(), request.initial_amount
     ).execute(&db_pool).await?;
 
     Ok(Json(id))
@@ -119,7 +114,7 @@ pub async fn get_bank_accounts(
     // todo: validate user_id exists
     let bank_accounts: Vec<BankAccount> = sqlx::query_as!(
         BankAccountDbModel,
-         "SELECT id, name, initial_amount_dollars, initial_amount_cents, user_id FROM BankAccounts WHERE user_id = ?",
+         "SELECT id, name, initial_amount, user_id FROM BankAccounts WHERE user_id = ?",
           query.user_id.as_simple())
           .fetch_all(&db_pool)
           .await?
