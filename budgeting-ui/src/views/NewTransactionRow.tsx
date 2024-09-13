@@ -31,16 +31,12 @@ export function NewTransactionRow({
       alert("Cannot save transaction without a transaction amount");
       return;
     }
-    // todo: do this better maybe?
-    const amountDollars = Math.trunc(amount);
-    const amountCents = Math.trunc(Math.abs(amount - amountDollars) * 100);
     try {
       setSaving(true);
       await save({
         date: formatDate(date),
         payee_id: payeeId,
-        amount_dollars: amountDollars,
-        amount_cents: amountCents,
+        amount: amount,
       });
       setDate(new Date());
       setAmount(undefined);

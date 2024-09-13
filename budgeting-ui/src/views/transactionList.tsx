@@ -1,26 +1,37 @@
-import { Table } from "@mantine/core";
+import { Table, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Transaction } from "../api/budgetingApi";
+import { CreateTransactionRequest, Transaction } from "../api/budgetingApi";
 import { useBudgetingApi } from "../App";
 import { NewTransactionRow } from "./NewTransactionRow";
 
-export default function TransactionList(): JSX.Element {
+export default function TransactionList({
+  bankAccountId,
+  userId,
+}: {
+  bankAccountId: string;
+  userId: string;
+}): JSX.Element {
   const budgetingApi = useBudgetingApi();
   const queryClient = useQueryClient();
 
   const { data: payees, isLoading: payeesLoading } = useQuery({
-    queryKey: ["payees"],
-    queryFn: budgetingApi.getPayees,
+    queryKey: ["payees", userId],
+    queryFn: () => budgetingApi.getPayees(userId),
   });
+
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ["transactions"],
-    queryFn: budgetingApi.getTransactions,
+    queryKey: ["transactions", bankAccountId],
+    queryFn: () => budgetingApi.getTransactions(bankAccountId),
   });
+
   const createTransaction = useMutation({
     mutationKey: ["create-transaction"],
-    mutationFn: budgetingApi.createTransaction,
+    mutationFn: (request: CreateTransactionRequest) =>
+      budgetingApi.createTransaction(request, bankAccountId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["transactions", bankAccountId],
+      });
     },
   });
 
@@ -50,33 +61,30 @@ export default function TransactionList(): JSX.Element {
   };
 
   return (
-    <Table>
-      <Table.Thead>
-        <Table.Tr>
-          {headers.map((x) => (
-            <Table.Th key={x.key}>{x.header}</Table.Th>
-          ))}
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        <NewTransactionRow
-          save={createTransaction.mutateAsync}
-          payees={payees}
-        />
-        {[...transactions].sort(compareTransactions).map((x) => (
-          <Table.Tr key={x.id}>
-            <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
-            <Table.Td>
-              $
-              {(
-                x.amount_dollars +
-                (x.amount_cents * Math.sign(x.amount_dollars)) / 100
-              ).toFixed(2)}
-            </Table.Td>
-            <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
+    <>
+      <Title>Transactions </Title>
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            {headers.map((x) => (
+              <Table.Th key={x.key}>{x.header}</Table.Th>
+            ))}
           </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+        </Table.Thead>
+        <Table.Tbody>
+          <NewTransactionRow
+            save={createTransaction.mutateAsync}
+            payees={payees}
+          />
+          {[...transactions].sort(compareTransactions).map((x) => (
+            <Table.Tr key={x.id}>
+              <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
+              <Table.Td>${x.amount}</Table.Td>
+              <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </>
   );
 }

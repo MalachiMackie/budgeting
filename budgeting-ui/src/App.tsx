@@ -2,10 +2,10 @@ import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { BudgetingApi } from "./api/budgetingApi";
 import { AppBar } from "./views/AppBar/AppBar";
-import TransactionList from "./views/transactionList";
+import { BankAccountList } from "./views/BankAccountList";
 
 export const BudgetingApiContext = createContext<BudgetingApi>(null!);
 
@@ -16,12 +16,25 @@ export function useBudgetingApi(): BudgetingApi {
 const queryClient = new QueryClient();
 
 function App() {
+  let [user, setUser] = useState<string | null>(null);
+  let budgetingApi = BudgetingApi;
+
+  // for now, just load the first user
+  useEffect(() => {
+    let load = async () => {
+      let users = await budgetingApi.getUsers();
+      setUser(users[0].id);
+    };
+
+    void load();
+  }, []);
+
   return (
     <MantineProvider>
-      <BudgetingApiContext.Provider value={BudgetingApi}>
+      <BudgetingApiContext.Provider value={budgetingApi}>
         <QueryClientProvider client={queryClient}>
           <AppBar />
-          <TransactionList />
+          {user && <BankAccountList userId={user} />}
         </QueryClientProvider>
       </BudgetingApiContext.Provider>
     </MantineProvider>
