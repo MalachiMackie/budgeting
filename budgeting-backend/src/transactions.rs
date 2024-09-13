@@ -1,38 +1,42 @@
-use axum::{extract::State, Json};
-use chrono::{NaiveDate, Utc};
+use anyhow::anyhow;
+use axum::{
+    extract::{Path, State},
+    Json,
+};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
+use utoipa::{OpenApi, ToSchema};
 use uuid::Uuid;
 
-use crate::{payees::{get_payee, PayeeId}, AppError};
+use crate::{payees::get_payee, AppError};
 
-#[derive(Deserialize, Serialize)]
-pub struct Transaction
-{
-    id: TransactionId,
-    payee_id: PayeeId,
+#[derive(OpenApi)]
+#[openapi(
+    paths(get_transactions, create_transaction),
+    components(schemas(Transaction, CreateTransactionRequest))
+)]
+pub struct TransactionApi;
+
+const API_TAG: &str = "Transactions";
+
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct Transaction {
+    id: Uuid,
+    payee_id: Uuid,
     date: NaiveDate,
     amount_dollars: i32,
-    amount_cents: u8
+    amount_cents: u8,
+    bank_account_id: Uuid,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
-pub struct TransactionId(pub Uuid);
-
-impl TransactionId {
-    pub fn new() -> Self
-    {
-        Self(Uuid::new_v4())
-    }
-}
-
-struct TransactionModel
-{
+struct TransactionModel {
     id: String,
     payee_id: String,
     date: NaiveDate,
     amount_cents: i32,
-    amount_dollars: i32
+    amount_dollars: i32,
+    bank_account_id: String,
 }
 
 impl TryFrom<TransactionModel> for Transaction {
@@ -40,18 +44,36 @@ impl TryFrom<TransactionModel> for Transaction {
 
     fn try_from(value: TransactionModel) -> Result<Self, Self::Error> {
         Ok(Self {
-            id: TransactionId(value.id.parse()?),
+            id: value.id.parse()?,
             date: value.date,
-            payee_id: PayeeId(value.payee_id.parse()?),
+            payee_id: value.payee_id.parse()?,
             amount_cents: value.amount_cents as u8,
-            amount_dollars: value.amount_dollars
+            amount_dollars: value.amount_dollars,
+            bank_account_id: value.bank_account_id.parse()?,
         })
     }
 }
 
-pub async fn get_transactions(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[Transaction]>>, AppError>
-{
-    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount_dollars, date, amount_cents, payee_id FROM Transactions")
+#[utoipa::path(
+    get,
+    path = "/api/bank-accounts/{bankAccountId}/transactions",
+    responses(
+        (status = OK, description = "Success", body = Box<[Transaction]>, content_type = "application/json")
+    ),
+    params(
+        ("bankAccountId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
+pub async fn get_transactions(
+    State(db_pool): State<MySqlPool>,
+    Path(bank_account_id): Path<Uuid>,
+) -> Result<Json<Box<[Transaction]>>, AppError> {
+    if bank_account_id.is_nil() {
+        return Err(AppError::BadRequest(anyhow!("Bank account id must be set")));
+    }
+
+    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount_dollars, date, amount_cents, payee_id, bank_account_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
         .fetch_all(&db_pool)
         .await?
         .into_iter()
@@ -61,33 +83,58 @@ pub async fn get_transactions(State(db_pool): State<MySqlPool>) -> Result<Json<B
     Ok(Json(transactions.into_boxed_slice()))
 }
 
-#[derive(Deserialize)]
-pub struct CreateTransactionRequest
-{
+#[derive(Deserialize, ToSchema)]
+pub struct CreateTransactionRequest {
     payee_id: Uuid,
     amount_dollars: i32,
     amount_cents: u8,
-    date: NaiveDate
+    date: NaiveDate,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/bank-accounts/{bankAccountId}/transactions",
+    responses(
+        (status = OK, description = "Success", body = Uuid, content_type = "application/json")
+    ),
+    request_body = CreateTransactionRequest,
+    params(
+        ("bankAccountId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
 pub async fn create_transaction(
     State(db_pool): State<MySqlPool>,
-    Json(request): Json<CreateTransactionRequest>)
-    -> Result<Json<Uuid>, AppError> {
-        let id = TransactionId::new();
+    Path(bank_account_id): Path<Uuid>,
+    Json(request): Json<CreateTransactionRequest>,
+) -> Result<Json<Uuid>, AppError> {
+    if request.payee_id.is_nil() {
+        return Err(AppError::BadRequest(anyhow!("Payee Id must be set")));
+    }
 
-        let payee = get_payee(PayeeId(request.payee_id), &db_pool)
-            .await?;
+    if bank_account_id.is_nil() {
+        return Err(AppError::BadRequest(anyhow!("Bank Account Id must be set")));
+    }
 
-        if payee.is_none() {
-            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")));
-        }
+    let id = Uuid::new_v4();
 
-        sqlx::query!(r"
-            INSERT INTO Transactions (id, payee_id, date, amount_dollars, amount_cents)
-            VALUE (?, ?, ?, ?, ?)", id.0.as_simple(), request.payee_id.as_simple(), request.date, request.amount_dollars, request.amount_cents)
+    let payee = get_payee(request.payee_id, &db_pool).await?;
+
+    if payee.is_none() {
+        return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")));
+    }
+
+    sqlx::query!(r"
+            INSERT INTO Transactions (id, payee_id, date, amount_dollars, amount_cents, bank_account_id)
+            VALUE (?, ?, ?, ?, ?, ?)",
+             id.as_simple(),
+              request.payee_id.as_simple(),
+               request.date,
+                request.amount_dollars,
+                 request.amount_cents,
+                bank_account_id.as_simple())
             .execute(&db_pool)
             .await?;
 
-        Ok(Json(id.0))
-    }
+    Ok(Json(id))
+}
