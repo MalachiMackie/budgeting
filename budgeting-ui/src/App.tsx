@@ -8,6 +8,9 @@ import { AppBar } from "./views/AppBar/AppBar";
 import { BankAccountList } from "./views/BankAccountList";
 
 export const BudgetingApiContext = createContext<BudgetingApi>(null!);
+export const UserContext = createContext<{ userId: string | null }>({
+  userId: null,
+});
 
 export function useBudgetingApi(): BudgetingApi {
   return useContext(BudgetingApiContext);
@@ -33,8 +36,12 @@ function App() {
     <MantineProvider defaultColorScheme="dark">
       <BudgetingApiContext.Provider value={budgetingApi}>
         <QueryClientProvider client={queryClient}>
-          <AppBar />
-          {user && <BankAccountList userId={user} />}
+          {user && (
+            <UserContext.Provider value={{userId: user}}>
+              <AppBar />
+              <BankAccountList userId={user} />
+            </UserContext.Provider>
+          )}
         </QueryClientProvider>
       </BudgetingApiContext.Provider>
     </MantineProvider>
