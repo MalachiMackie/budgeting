@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use axum::{
-    extract::{Query, State}, Json
+    extract::{Path, Query, State}, Json
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use crate::AppError;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_bank_accounts, create_bank_account),
+    paths(get_bank_accounts, create_bank_account, get_bank_account),
     components(schemas(BankAccount, CreateBankAccountRequest))
 )]
 pub struct BankAccountApi;
@@ -123,4 +123,38 @@ pub async fn get_bank_accounts(
           .collect();
 
     Ok(Json(bank_accounts.into_boxed_slice()))
+}
+
+#[derive(Deserialize)]
+pub struct GetBankAccountQuery {user_id: Uuid}
+
+#[utoipa::path(
+    get,
+    path = "/api/bank-accounts/{accountId}",
+    responses(
+        (status = OK, description = "Success", body = BankAccount, content_type = "application/json")
+    ),
+    params(
+        ("user_id" = Uuid, Query,),
+        ("accountId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
+pub async fn get_bank_account(
+    Query(query): Query<GetBankAccountQuery>,
+    State(db_pool): State<MySqlPool>,
+    Path(account_id): Path<Uuid>,
+) -> Result<Json<BankAccount>, AppError> {
+    if account_id.is_nil() {
+        return Err(AppError::BadRequest(anyhow!("{account_id} is not a valid bank account id")))
+    }
+
+    let account: Option<BankAccount> = sqlx::query_as!(BankAccountDbModel, r"
+        SELECT id, name, initial_amount, user_id FROM BankAccounts WHERE user_id = ? AND id = ?
+    ", query.user_id.as_simple(), account_id.as_simple())
+        .fetch_optional(&db_pool)
+        .await?
+        .map(|account| account.try_into().unwrap());
+
+    account.map(Json).ok_or_else(|| AppError::NotFound(anyhow!("Could not find a bank account with id {account_id}")))
 }

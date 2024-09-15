@@ -10,14 +10,13 @@ use axum::{
     routing::get,
     Router,
 };
-use bank_accounts::{create_bank_account, get_bank_accounts, BankAccountApi};
+use bank_accounts::{create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi};
 use http::header::{ACCEPT, CONTENT_TYPE};
 use payees::{create_payee, get_payees, PayeesApi};
 use sqlx::MySqlPool;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 use tracing::info_span;
@@ -38,7 +37,6 @@ async fn main() {
     dotenvy::dotenv().unwrap();
 
     let db_url = std::env::var("DATABASE_URL").unwrap();
-    let dist_path = std::env::var("FRONTEND_DIST_PATH").unwrap();
     let allow_origin = std::env::var("CORS_ALLOW_ORIGIN").unwrap();
 
     tracing::info!("Connecting to db at {db_url}");
@@ -64,10 +62,6 @@ async fn main() {
     openapi.merge(UserApi::openapi());
 
     let app = Router::new()
-        .route(
-            "/api/bank-accounts/:bankAccountId/transactions",
-            get(get_transactions).post(create_transaction),
-        )
         .route("/api/payees", get(get_payees).post(create_payee))
         .route("/api/users", get(get_users).post(create_user))
         .route("/api/users/:userId", get(get_user))
@@ -75,8 +69,11 @@ async fn main() {
             "/api/bank-accounts",
             get(get_bank_accounts).post(create_bank_account),
         )
-        .nest_service("/assets", ServeDir::new(format!("{dist_path}/assets")))
-        .nest_service("/", ServeFile::new(format!("{dist_path}/index.html")))
+        .route("/api/bank-accounts/:accountId", get(get_bank_account))
+        .route(
+            "/api/bank-accounts/:bankAccountId/transactions",
+            get(get_transactions).post(create_transaction),
+        )
         .with_state(connection_pool)
         .layer(
             ServiceBuilder::new()

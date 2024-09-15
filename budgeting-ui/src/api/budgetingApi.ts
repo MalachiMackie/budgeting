@@ -31,6 +31,16 @@ export const BudgetingApi = {
     let json = await result.json();
     return json as User[];
   },
+  async getBankAccount(
+    accountId: string,
+    userId: string
+  ): Promise<BankAccount> {
+    const result = await fetch(
+      `http://localhost:3000/api/bank-accounts/${accountId}?user_id=${userId}`
+    );
+    const json = await result.json();
+    return json as BankAccount;
+  },
   async getBankAccounts(userId: string): Promise<BankAccount[]> {
     let result = await fetch(
       `http://localhost:3000/api/bank-accounts?user_id=${userId}`
