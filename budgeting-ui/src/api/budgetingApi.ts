@@ -79,4 +79,5 @@ export type BankAccount = {
   name: string;
   id: string;
   initial_amount: number;
+  balance: number;
 };

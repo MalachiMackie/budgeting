@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use axum::{
-    extract::{Path, Query, State}, Json
+    extract::{Path, Query, State},
+    Json,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,9 @@ pub struct BankAccount {
     #[serde(with = "rust_decimal::serde::float")]
     initial_amount: Decimal,
     user_id: Uuid,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    balance: Decimal,
 }
 
 struct BankAccountDbModel {
@@ -34,6 +38,7 @@ struct BankAccountDbModel {
     name: String,
     initial_amount: Decimal,
     user_id: String,
+    transaction_total: Option<Decimal>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -57,6 +62,7 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
             user_id,
             initial_amount: value.initial_amount,
             name: value.name,
+            balance: value.initial_amount + value.transaction_total.unwrap_or(Decimal::ZERO),
         })
     }
 }
@@ -84,16 +90,22 @@ pub async fn create_bank_account(
 
     let id = Uuid::new_v4();
 
-    sqlx::query!("INSERT INTO BankAccounts (id, name, user_id, initial_amount) VALUE(?, ?, ?, ?)",
-        id.as_simple(), request.name, request.user_id.as_simple(), request.initial_amount
-    ).execute(&db_pool).await?;
+    sqlx::query!(
+        "INSERT INTO BankAccounts (id, name, user_id, initial_amount) VALUE(?, ?, ?, ?)",
+        id.as_simple(),
+        request.name,
+        request.user_id.as_simple(),
+        request.initial_amount
+    )
+    .execute(&db_pool)
+    .await?;
 
     Ok(Json(id))
 }
 
 #[derive(Deserialize)]
 pub struct GetBankAccountsQuery {
-    pub user_id: Uuid
+    pub user_id: Uuid,
 }
 
 #[utoipa::path(
@@ -114,19 +126,27 @@ pub async fn get_bank_accounts(
     // todo: validate user_id exists
     let bank_accounts: Vec<BankAccount> = sqlx::query_as!(
         BankAccountDbModel,
-         "SELECT id, name, initial_amount, user_id FROM BankAccounts WHERE user_id = ?",
-          query.user_id.as_simple())
-          .fetch_all(&db_pool)
-          .await?
-          .into_iter()
-          .map(|bank_account| bank_account.try_into().unwrap())
-          .collect();
+        r"
+         SELECT ba.id, ba.name, ba.initial_amount, ba.user_id, SUM(t.amount) as transaction_total
+         FROM BankAccounts ba
+         JOIN Transactions t ON ba.id = t.bank_account_id
+         WHERE user_id = ?
+         GROUP BY ba.id, ba.name, ba.initial_amount, ba.user_id",
+        query.user_id.as_simple()
+    )
+    .fetch_all(&db_pool)
+    .await?
+    .into_iter()
+    .map(|bank_account| bank_account.try_into().unwrap())
+    .collect();
 
     Ok(Json(bank_accounts.into_boxed_slice()))
 }
 
 #[derive(Deserialize)]
-pub struct GetBankAccountQuery {user_id: Uuid}
+pub struct GetBankAccountQuery {
+    user_id: Uuid,
+}
 
 #[utoipa::path(
     get,
@@ -146,15 +166,30 @@ pub async fn get_bank_account(
     Path(account_id): Path<Uuid>,
 ) -> Result<Json<BankAccount>, AppError> {
     if account_id.is_nil() {
-        return Err(AppError::BadRequest(anyhow!("{account_id} is not a valid bank account id")))
+        return Err(AppError::BadRequest(anyhow!(
+            "{account_id} is not a valid bank account id"
+        )));
     }
 
-    let account: Option<BankAccount> = sqlx::query_as!(BankAccountDbModel, r"
-        SELECT id, name, initial_amount, user_id FROM BankAccounts WHERE user_id = ? AND id = ?
-    ", query.user_id.as_simple(), account_id.as_simple())
-        .fetch_optional(&db_pool)
-        .await?
-        .map(|account| account.try_into().unwrap());
+    let account: Option<BankAccount> = sqlx::query_as!(
+        BankAccountDbModel,
+        r"
+        SELECT ba.id, ba.name, ba.initial_amount, ba.user_id, SUM(t.amount) as transaction_total
+         FROM BankAccounts ba
+         JOIN Transactions t ON ba.id = t.bank_account_id
+         WHERE user_id = ?
+         AND ba.id = ?
+         GROUP BY ba.id, ba.name, ba.initial_amount, ba.user_id",
+        query.user_id.as_simple(),
+        account_id.as_simple()
+    )
+    .fetch_optional(&db_pool)
+    .await?
+    .map(|account| account.try_into().unwrap());
 
-    account.map(Json).ok_or_else(|| AppError::NotFound(anyhow!("Could not find a bank account with id {account_id}")))
+    account.map(Json).ok_or_else(|| {
+        AppError::NotFound(anyhow!(
+            "Could not find a bank account with id {account_id}"
+        ))
+    })
 }
