@@ -30,7 +30,7 @@ function App() {
   }, []);
 
   return (
-    <MantineProvider>
+    <MantineProvider defaultColorScheme="dark">
       <BudgetingApiContext.Provider value={budgetingApi}>
         <QueryClientProvider client={queryClient}>
           <AppBar />

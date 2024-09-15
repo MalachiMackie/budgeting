@@ -19,7 +19,7 @@ const preview: Preview = {
   decorators: [
     (Story, _) => {
       return (
-        <MantineProvider>
+        <MantineProvider defaultColorScheme="dark">
           <Story />
         </MantineProvider>
       );
