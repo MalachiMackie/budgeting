@@ -1,23 +1,21 @@
-import { Table, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { Table } from "@mantine/core";
 import { useState } from "react";
-import { useBudgetingApi } from "../App";
+import { BankAccount } from "../api/budgetingApi";
 import TransactionList from "./transactionList";
 
-export function BankAccountList({ userId }: { userId: string }): JSX.Element {
-  const api = useBudgetingApi();
-  const { data: bankAccounts } = useQuery({
-    queryKey: ["bank-accounts", userId],
-    queryFn: () => api.getBankAccounts(userId),
-  });
-
+export function BankAccountList({
+  userId,
+  bankAccounts,
+}: {
+  userId: string;
+  bankAccounts: BankAccount[];
+}): JSX.Element {
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<
     string | null
   >(null);
 
   return (
     <>
-      <Title>Bank Accounts</Title>
       <Table>
         <Table.Thead>
           <Table.Tr>
@@ -27,7 +25,7 @@ export function BankAccountList({ userId }: { userId: string }): JSX.Element {
         </Table.Thead>
         <Table.Tbody>
           {bankAccounts?.map((x) => (
-            <Table.Tr onClick={() => setSelectedBankAccountId(x.id)}>
+            <Table.Tr key={x.id} onClick={() => setSelectedBankAccountId(x.id)}>
               <Table.Td>{x.name}</Table.Td>
               <Table.Td>{x.initial_amount}</Table.Td>
             </Table.Tr>
