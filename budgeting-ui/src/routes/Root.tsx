@@ -1,4 +1,5 @@
 import { IconHome, IconMoneybag } from "@tabler/icons-react";
+import { QueryClient } from "@tanstack/react-query";
 import { Outlet, useLoaderData } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
 import { SideNav } from "../components/SideNav/SideNav";
@@ -15,11 +16,14 @@ export function Root(): JSX.Element {
             type: "group",
             label: "Accounts",
             icon: IconMoneybag,
-            links: bankAccounts.map((x) => ({
-              label: `${x.name}`,
-              endLabel: "$0.00",
-              link: `/accounts/${x.id}`,
-            })),
+            links: [
+              { label: "All", link: "/accounts" },
+              ...bankAccounts.map((x) => ({
+                label: `${x.name}`,
+                subLabel: `$${x.balance.toFixed(2)}`,
+                link: `/accounts/${x.id}`,
+              })),
+            ],
           },
         ]}
       />
@@ -30,8 +34,15 @@ export function Root(): JSX.Element {
   );
 }
 
-export function createRootLoader(api: BudgetingApi, userId: string) {
+export function createRootLoader(
+  api: BudgetingApi,
+  queryClient: QueryClient,
+  userId: string
+) {
   return () => {
-    return api.getBankAccounts(userId);
+    return queryClient.fetchQuery({
+      queryKey: ["bank-accounts"],
+      queryFn: () => api.getBankAccounts(userId),
+    });
   };
 }

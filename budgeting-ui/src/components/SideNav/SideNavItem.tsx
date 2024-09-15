@@ -4,19 +4,21 @@ import { FC, Fragment, ReactNode } from "react";
 
 export type SideNavItemProps = {
   label: string;
+  subLabel?: string;
   icon?: FC<any>;
   openable?: boolean;
   open?: boolean;
   onOpenToggled?: () => void;
-  className?: string
+  className?: string;
 };
 export function SideNavItem({
   icon: Icon,
   label,
+  subLabel,
   openable,
   open,
   onOpenToggled,
-  className
+  className,
 }: SideNavItemProps): JSX.Element {
   function Button({ children }: { children: ReactNode }) {
     return (
@@ -37,7 +39,10 @@ export function SideNavItem({
               <Icon style={{ width: rem(18), height: rem(18) }} />
             </ThemeIcon>
           )}
-          <Box ml="md">{label}</Box>
+          <Box ml="md">
+            <span>{label}</span>
+            {subLabel && <span>{subLabel}</span>}
+          </Box>
         </Box>
         {openable && (
           <IconChevronRight

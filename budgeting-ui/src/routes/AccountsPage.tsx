@@ -1,23 +1,29 @@
 import { Title } from "@mantine/core";
+import { QueryClient } from "@tanstack/react-query";
 import { useLoaderData } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
-import { useUserId } from "../hooks/useUserId";
 import { BankAccountList } from "../views/BankAccountList";
 
 export function AccountsPage(): JSX.Element {
-  const userId = useUserId();
   const bankAccounts = useLoaderData() as BankAccount[];
 
   return (
     <div>
       <Title size="h1">Bank Accounts</Title>
-      <BankAccountList userId={userId} bankAccounts={bankAccounts} />
+      <BankAccountList bankAccounts={bankAccounts} />
     </div>
   );
 }
 
-export function createAccountsLoader(api: BudgetingApi, userId: string) {
+export function createAccountsLoader(
+  api: BudgetingApi,
+  queryClient: QueryClient,
+  userId: string
+) {
   return () => {
-    return api.getBankAccounts(userId);
+    return queryClient.fetchQuery({
+      queryKey: ["bank-accounts"],
+      queryFn: () => api.getBankAccounts(userId),
+    });
   };
 }

@@ -1,11 +1,11 @@
-import { rem, Text, ThemeIcon } from "@mantine/core";
+import { Box, rem, Text, ThemeIcon } from "@mantine/core";
 import { FC } from "react";
 import { Link } from "react-router-dom";
 
 export type NavLinkProps = {
   link: string;
   label: string;
-  endLabel?: string;
+  subLabel?: string;
   isRoot?: boolean;
   icon?: FC<any>;
 };
@@ -13,6 +13,7 @@ export type NavLinkProps = {
 export function NavLink({
   link,
   label,
+  subLabel,
   isRoot,
   icon: Icon,
 }: NavLinkProps): JSX.Element {
@@ -31,7 +32,10 @@ export function NavLink({
         </ThemeIcon>
       )}
 
-      <span className="label">{label}</span>
+      <Box display={"flex"} className="label">
+        <span>{label}</span>
+        {subLabel && <span style={{ marginLeft: "auto" }}>{subLabel}</span>}
+      </Box>
     </Text>
   );
 }

@@ -1,7 +1,11 @@
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { BudgetingApi } from "./api/budgetingApi";
@@ -51,23 +55,24 @@ function App() {
 export function BudgetingRouterWrapper() {
   const api = useBudgetingApi();
   const userId = useUserId();
+  const queryClient = useQueryClient();
 
   const router = createBrowserRouter([
     {
       path: "/",
       element: <Root />,
-      loader: createRootLoader(api, userId),
+      loader: createRootLoader(api, queryClient, userId),
       errorElement: <>Something went wrong 😱</>,
       children: [
         {
           path: "/accounts/:accountId",
           element: <AccountPage />,
-          loader: createAccountLoader(api, userId),
+          loader: createAccountLoader(api, queryClient, userId),
         },
         {
           path: "/accounts",
           element: <AccountsPage />,
-          loader: createAccountsLoader(api, userId),
+          loader: createAccountsLoader(api, queryClient, userId),
         },
       ],
     },
