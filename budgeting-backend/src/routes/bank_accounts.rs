@@ -3,13 +3,12 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::MySqlPool;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, AppError};
+use crate::{db, models::{BankAccount, CreateBankAccountRequest}, AppError};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -19,28 +18,6 @@ use crate::{db, AppError};
 pub struct BankAccountApi;
 
 const API_TAG: &str = "BankAccounts";
-
-#[derive(Serialize, ToSchema)]
-pub struct BankAccount {
-    pub id: Uuid,
-    pub name: String,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub initial_amount: Decimal,
-    pub user_id: Uuid,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub balance: Decimal,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct CreateBankAccountRequest {
-    pub name: String,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub initial_amount: Decimal,
-    pub user_id: Uuid,
-}
 
 #[utoipa::path(
     post,

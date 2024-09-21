@@ -3,12 +3,12 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::MySqlPool;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, AppError};
+use crate::{db, models::{CreatePayeeRequest, Payee}, AppError};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -18,13 +18,6 @@ use crate::{db, AppError};
 pub struct PayeesApi;
 
 const API_TAG: &str = "Payees";
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct Payee {
-    pub id: Uuid,
-    pub name: String,
-    pub user_id: Uuid,
-}
 
 #[derive(Deserialize)]
 pub struct GetPayeesQuery {
@@ -50,12 +43,6 @@ pub async fn get_payees(
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get payees")))
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct CreatePayeeRequest {
-    pub name: String,
-    pub user_id: Uuid,
 }
 
 #[utoipa::path(

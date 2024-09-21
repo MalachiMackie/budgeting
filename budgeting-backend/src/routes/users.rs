@@ -4,31 +4,17 @@ use axum::{
     Json,
 };
 use email_address::EmailAddress;
-use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, AppError};
+use crate::{db, models::{CreateUserRequest, User}, AppError};
 
 #[derive(OpenApi)]
 #[openapi(paths(get_users, get_user, create_user), components(schemas(User, CreateUserRequest)))]
 pub struct UserApi;
 
 const API_TAG: &str = "Users";
-
-#[derive(Deserialize, Serialize, ToSchema)]
-pub struct User {
-    pub id: Uuid,
-    pub name: String,
-    pub email: String,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct CreateUserRequest {
-    pub name: String,
-    pub email: String,
-}
 
 #[utoipa::path(
     post,

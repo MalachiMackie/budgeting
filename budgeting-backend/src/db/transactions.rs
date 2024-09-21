@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::transactions::{CreateTransactionRequest, Transaction};
+use crate::models::{CreateTransactionRequest, Transaction};
 
 use super::DbError;
 

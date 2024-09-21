@@ -1,7 +1,7 @@
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::users::{CreateUserRequest, User};
+use crate::models::{CreateUserRequest, User};
 
 use super::DbError;
 

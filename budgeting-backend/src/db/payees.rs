@@ -1,7 +1,7 @@
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::payees::{CreatePayeeRequest, Payee};
+use crate::models::{CreatePayeeRequest, Payee};
 
 use super::DbError;
 

@@ -2,7 +2,7 @@ use rust_decimal::Decimal;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::bank_accounts::{BankAccount, CreateBankAccountRequest};
+use crate::models::{BankAccount, CreateBankAccountRequest};
 
 use super::DbError;
 

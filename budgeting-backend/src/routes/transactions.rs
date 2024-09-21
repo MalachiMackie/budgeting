@@ -3,14 +3,15 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use chrono::NaiveDate;
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db::{self, DbError}, AppError};
+use crate::{
+    db::{self, DbError},
+    models::{CreateTransactionRequest, Transaction},
+    AppError,
+};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -20,17 +21,6 @@ use crate::{db::{self, DbError}, AppError};
 pub struct TransactionApi;
 
 const API_TAG: &str = "Transactions";
-
-#[derive(Deserialize, Serialize, ToSchema)]
-pub struct Transaction {
-    pub id: Uuid,
-    pub payee_id: Uuid,
-    pub date: NaiveDate,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub amount: Decimal,
-    pub bank_account_id: Uuid,
-}
 
 #[utoipa::path(
     get,
@@ -55,15 +45,6 @@ pub async fn get_transactions(
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get transactions")))
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct CreateTransactionRequest {
-    pub payee_id: Uuid,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub amount: Decimal,
-    pub date: NaiveDate,
 }
 
 #[utoipa::path(
@@ -93,13 +74,14 @@ pub async fn create_transaction(
 
     let id = Uuid::new_v4();
 
-    let payee_result = db::payees::get_payee(&db_pool, id)
-        .await;
+    let payee_result = db::payees::get_payee(&db_pool, id).await;
 
     match payee_result {
         Ok(_) => (),
-        Err(DbError::NotFound) => return Err(AppError::NotFound(anyhow::anyhow!("Payee not found"))),
-        Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction")))
+        Err(DbError::NotFound) => {
+            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")))
+        }
+        Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction"))),
     }
 
     db::transactions::create_transaction(&db_pool, id, bank_account_id, request)
