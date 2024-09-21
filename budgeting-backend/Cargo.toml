@@ -7,6 +7,7 @@ edition = "2021"
 anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["macros"] }
 chrono = { version = "0.4.38", features = ["serde"] }
+derive_more = { version = "1.0.0", features = ["constructor"] }
 dotenvy = "0.15.7"
 email_address = "0.2.9"
 http = "1.1.0"

@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use derive_more::derive::Constructor;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -44,13 +45,13 @@ pub struct User {
     pub email: String,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema, Constructor)]
 pub struct CreateUserRequest {
     pub name: String,
     pub email: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, ToSchema, Constructor)]
 pub struct BankAccount {
     pub id: Uuid,
     pub name: String,
@@ -63,7 +64,7 @@ pub struct BankAccount {
     pub balance: Decimal,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema, Constructor)]
 pub struct CreateBankAccountRequest {
     pub name: String,
     #[schema(value_type = f32)]

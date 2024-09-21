@@ -3,6 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use http::StatusCode;
 use serde::Deserialize;
 use sqlx::MySqlPool;
 use utoipa::OpenApi;
@@ -23,7 +24,7 @@ const API_TAG: &str = "BankAccounts";
     post,
     path = "/api/bank-accounts",
     responses(
-        (status = OK, description = "Success", body = Uuid, content_type = "application/json")
+        (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreateBankAccountRequest,
     tag = API_TAG
@@ -31,7 +32,7 @@ const API_TAG: &str = "BankAccounts";
 pub async fn create_bank_account(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateBankAccountRequest>,
-) -> Result<Json<Uuid>, AppError> {
+) -> Result<(StatusCode, Json<Uuid>), AppError> {
     if request.name.trim().is_empty() {
         return Err(AppError::BadRequest(anyhow!("Name must not be empty")));
     }
@@ -46,7 +47,7 @@ pub async fn create_bank_account(
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create bank account")))?;
 
-    Ok(Json(id))
+    Ok((StatusCode::CREATED, Json(id)))
 }
 
 #[derive(Deserialize)]

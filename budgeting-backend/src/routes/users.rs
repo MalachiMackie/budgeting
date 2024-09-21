@@ -21,7 +21,7 @@ const API_TAG: &str = "Users";
     post,
     path = "/api/users",
     responses(
-        (status = OK, description = "Success", body = Uuid, content_type = "application/json")
+        (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreateUserRequest,
     tag = API_TAG
