@@ -1,4 +1,4 @@
-import { Table, Title } from "@mantine/core";
+import { Table } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreateTransactionRequest, Transaction } from "../api/budgetingApi";
 import { useBudgetingApi } from "../App";
@@ -62,7 +62,6 @@ export default function TransactionList({
 
   return (
     <>
-      <Title>Transactions </Title>
       <Table>
         <Table.Thead>
           <Table.Tr>

@@ -2,6 +2,7 @@ mod bank_accounts;
 mod payees;
 mod transactions;
 mod users;
+mod db;
 
 use axum::{
     extract::{MatchedPath, Request},

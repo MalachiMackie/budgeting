@@ -10,7 +10,7 @@ use sqlx::MySqlPool;
 use utoipa::{OpenApi, ToSchema};
 use uuid::Uuid;
 
-use crate::{payees::get_payee, AppError};
+use crate::{db::{self, DbError}, AppError};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -23,35 +23,13 @@ const API_TAG: &str = "Transactions";
 
 #[derive(Deserialize, Serialize, ToSchema)]
 pub struct Transaction {
-    id: Uuid,
-    payee_id: Uuid,
-    date: NaiveDate,
+    pub id: Uuid,
+    pub payee_id: Uuid,
+    pub date: NaiveDate,
     #[schema(value_type = f32)]
     #[serde(with = "rust_decimal::serde::float")]
-    amount: Decimal,
-    bank_account_id: Uuid,
-}
-
-struct TransactionModel {
-    id: String,
-    payee_id: String,
-    date: NaiveDate,
-    amount: Decimal,
-    bank_account_id: String,
-}
-
-impl TryFrom<TransactionModel> for Transaction {
-    type Error = anyhow::Error;
-
-    fn try_from(value: TransactionModel) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: value.id.parse()?,
-            date: value.date,
-            payee_id: value.payee_id.parse()?,
-            amount: value.amount,
-            bank_account_id: value.bank_account_id.parse()?,
-        })
-    }
+    pub amount: Decimal,
+    pub bank_account_id: Uuid,
 }
 
 #[utoipa::path(
@@ -73,23 +51,19 @@ pub async fn get_transactions(
         return Err(AppError::BadRequest(anyhow!("Bank account id must be set")));
     }
 
-    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount, date, payee_id, bank_account_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
-        .fetch_all(&db_pool)
-        .await?
-        .into_iter()
-        .map(|transaction| transaction.try_into())
-        .collect::<Result<Vec<Transaction>, _>>()?;
-
-    Ok(Json(transactions.into_boxed_slice()))
+    db::transactions::get_transactions(&db_pool, bank_account_id)
+        .await
+        .map(Json)
+        .map_err(|e| e.to_app_error(anyhow!("Could not get transactions")))
 }
 
 #[derive(Deserialize, ToSchema)]
 pub struct CreateTransactionRequest {
-    payee_id: Uuid,
+    pub payee_id: Uuid,
     #[schema(value_type = f32)]
     #[serde(with = "rust_decimal::serde::float")]
-    amount: Decimal,
-    date: NaiveDate,
+    pub amount: Decimal,
+    pub date: NaiveDate,
 }
 
 #[utoipa::path(
@@ -119,22 +93,18 @@ pub async fn create_transaction(
 
     let id = Uuid::new_v4();
 
-    let payee = get_payee(request.payee_id, &db_pool).await?;
+    let payee_result = db::payees::get_payee(&db_pool, id)
+        .await;
 
-    if payee.is_none() {
-        return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")));
+    match payee_result {
+        Ok(_) => (),
+        Err(DbError::NotFound) => return Err(AppError::NotFound(anyhow::anyhow!("Payee not found"))),
+        Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction")))
     }
 
-    sqlx::query!(r"
-            INSERT INTO Transactions (id, payee_id, date, amount, bank_account_id)
-            VALUE (?, ?, ?, ?, ?)",
-             id.as_simple(),
-              request.payee_id.as_simple(),
-               request.date,
-                request.amount,
-                bank_account_id.as_simple())
-            .execute(&db_pool)
-            .await?;
+    db::transactions::create_transaction(&db_pool, id, bank_account_id, request)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Could not create transaction")))?;
 
     Ok(Json(id))
 }

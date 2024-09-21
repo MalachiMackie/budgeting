@@ -11,7 +11,7 @@ export function AccountPage(): JSX.Element {
 
   return (
     <>
-      <Title>{bankAccount.name}</Title>
+      <Title>{bankAccount.name} - Transactions</Title>
       <TransactionList bankAccountId={bankAccount.id} userId={userId} />
     </>
   );

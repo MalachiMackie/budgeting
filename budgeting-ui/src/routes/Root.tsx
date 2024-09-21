@@ -27,7 +27,7 @@ export function Root(): JSX.Element {
           },
         ]}
       />
-      <div style={{ flexGrow: 1 }}>
+      <div style={{ flexGrow: 1, padding: "1rem" }}>
         <Outlet />
       </div>
     </div>
