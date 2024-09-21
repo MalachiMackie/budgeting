@@ -44,7 +44,7 @@ pub struct User {
     pub email: String,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct CreateUserRequest {
     pub name: String,
     pub email: String,

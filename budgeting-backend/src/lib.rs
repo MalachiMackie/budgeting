@@ -1,6 +1,6 @@
-mod db;
-mod routes;
+pub mod db;
 pub mod models;
+mod routes;
 
 use axum::{
     extract::{MatchedPath, Request},
@@ -9,19 +9,18 @@ use axum::{
     routing::get,
     Router,
 };
-use routes::bank_accounts::{create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi};
 use http::header::{ACCEPT, CONTENT_TYPE};
-use routes::payees::{create_payee, get_payees, PayeesApi};
-use sqlx::MySqlPool;
-use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
+use routes::bank_accounts::{
+    create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi,
 };
-use tracing::info_span;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use routes::payees::{create_payee, get_payees, PayeesApi};
 use routes::transactions::{create_transaction, get_transactions, TransactionApi};
 use routes::users::{create_user, get_user, get_users, UserApi};
+use sqlx::MySqlPool;
+use tower::ServiceBuilder;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tracing::info_span;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -66,8 +65,7 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
 }
 
 fn build_cors() -> CorsLayer {
-    let allow_origin = std::env::var("CORS_ALLOW_ORIGIN")
-        .unwrap_or("localhost".to_owned());
+    let allow_origin = std::env::var("CORS_ALLOW_ORIGIN").unwrap_or("localhost".to_owned());
 
     CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])

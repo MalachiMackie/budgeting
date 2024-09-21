@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use email_address::EmailAddress;
+use http::StatusCode;
 use sqlx::MySqlPool;
 use utoipa::OpenApi;
 use uuid::Uuid;
@@ -28,7 +29,7 @@ const API_TAG: &str = "Users";
 pub async fn create_user(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateUserRequest>,
-) -> Result<Json<Uuid>, AppError> {
+) -> Result<(StatusCode, Json<Uuid>), AppError> {
     if request.name.trim().is_empty() {
         return Err(AppError::BadRequest(anyhow!("User name must not be empty")));
     }
@@ -46,7 +47,7 @@ pub async fn create_user(
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create user")))?;
 
-    Ok(Json(id))
+    Ok((StatusCode::CREATED, Json(id)))
 }
 
 #[utoipa::path(
