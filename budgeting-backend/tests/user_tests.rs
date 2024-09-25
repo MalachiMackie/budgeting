@@ -1,17 +1,16 @@
 mod common;
 
-use common::*;
 use budgeting_backend::{
     db,
     models::{CreateUserRequest, User},
 };
+use common::*;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-
 #[sqlx::test]
 pub async fn create_users(db_pool: MySqlPool) {
-    let server = integration_test_init(db_pool.clone()).await;
+    let server = integration_test_init(db_pool.clone());
 
     let response = server
         .post("/api/users")
@@ -38,7 +37,7 @@ pub async fn create_users(db_pool: MySqlPool) {
 
 #[sqlx::test]
 pub async fn get_users(db_pool: MySqlPool) {
-    let server = integration_test_init(db_pool.clone()).await;
+    let server = integration_test_init(db_pool.clone());
 
     let mut users = vec![
         User {
@@ -58,7 +57,7 @@ pub async fn get_users(db_pool: MySqlPool) {
         db::users::create_user(
             &db_pool,
             user.id,
-            CreateUserRequest::new(user.email.clone(), user.name.clone()),
+            CreateUserRequest::new(user.name.clone(), user.email.clone()),
         )
         .await
         .unwrap();
@@ -67,4 +66,24 @@ pub async fn get_users(db_pool: MySqlPool) {
     let response = server.get("/api/users").await;
     response.assert_ok();
     response.assert_json(&users);
+}
+
+#[sqlx::test]
+pub async fn get_user(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+
+    let user_id = Uuid::new_v4();
+    let user = User::new(user_id, "Name".to_owned(), "email@email.com".to_owned());
+    db::users::create_user(
+        &db_pool,
+        user_id,
+        CreateUserRequest::new(user.name.clone(), user.email.clone()),
+    )
+    .await
+    .unwrap();
+
+    let response = test_server.get(&format!("/api/users/{user_id}")).await;
+
+    response.assert_ok();
+    response.assert_json(&user);
 }

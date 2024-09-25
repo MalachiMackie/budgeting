@@ -5,7 +5,7 @@ use budgeting_backend::new_app;
 use http::StatusCode;
 use sqlx::MySqlPool;
 
-pub async fn integration_test_init(db_pool: MySqlPool) -> TestServer {
+pub fn integration_test_init(db_pool: MySqlPool) -> TestServer {
     let server = TestServer::new(new_app(db_pool)).unwrap();
 
     server
@@ -22,6 +22,7 @@ impl<'a, T> OnceLockExt<'a, T> for OnceLock<T> {
     }
 }
 
+#[allow(unused)]
 pub trait TestResponseExt {
     fn assert_ok(&self);
     fn assert_created(&self);

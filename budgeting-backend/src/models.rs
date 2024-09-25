@@ -5,14 +5,14 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, Constructor, PartialEq, Debug, ToSchema)]
 pub struct Payee {
     pub id: Uuid,
     pub name: String,
     pub user_id: Uuid,
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, Constructor, ToSchema)]
 pub struct CreatePayeeRequest {
     pub name: String,
     pub user_id: Uuid,
@@ -38,7 +38,7 @@ pub struct CreateTransactionRequest {
     pub date: NaiveDate,
 }
 
-#[derive(Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Constructor, ToSchema, Debug, PartialEq)]
 pub struct User {
     pub id: Uuid,
     pub name: String,

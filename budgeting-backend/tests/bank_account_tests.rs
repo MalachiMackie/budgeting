@@ -8,7 +8,7 @@ use budgeting_backend::{
     db,
     models::{BankAccount, CreateBankAccountRequest, CreateUserRequest},
 };
-use common::integration_test_init;
+use common::*;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 use sqlx::MySqlPool;
 use uuid::Uuid;
@@ -42,7 +42,7 @@ async fn test_init(db_pool: &MySqlPool) {
 
 #[sqlx::test]
 pub async fn create_bank_account(db_pool: MySqlPool) {
-    let test_server = integration_test_init(db_pool.clone()).await;
+    let test_server = integration_test_init(db_pool.clone());
     test_init(&db_pool).await;
 
     let user_id = Uuid::new_v4();
@@ -88,7 +88,7 @@ pub async fn create_bank_account(db_pool: MySqlPool) {
 
 #[sqlx::test]
 pub async fn get_bank_account_without_transactions(db_pool: MySqlPool) {
-    let test_server = integration_test_init(db_pool.clone()).await;
+    let test_server = integration_test_init(db_pool.clone());
     test_init(&db_pool).await;
 
     let bank_account_id = BANK_ACCOUNT_ID.unwrap();

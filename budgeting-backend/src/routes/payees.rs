@@ -3,6 +3,7 @@ use axum::{
     extract::{Query, State},
     Json,
 };
+use http::StatusCode;
 use serde::Deserialize;
 use sqlx::MySqlPool;
 use utoipa::OpenApi;
@@ -49,7 +50,7 @@ pub async fn get_payees(
     post,
     path = "/api/payees",
     responses(
-        (status = OK, description = "Success", body = Uuid, content_type = "application/json")
+        (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreatePayeeRequest,
     tag = API_TAG
@@ -57,7 +58,7 @@ pub async fn get_payees(
 pub async fn create_payee(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreatePayeeRequest>,
-) -> Result<Json<Uuid>, AppError> {
+) -> Result<(StatusCode, Json<Uuid>), AppError> {
     if request.user_id.is_nil() {
         return Err(AppError::BadRequest(anyhow!("User Id must be set")));
     }
@@ -68,5 +69,5 @@ pub async fn create_payee(
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create payee")))?;
 
-    Ok(Json(id))
+    Ok((StatusCode::CREATED, Json(id)))
 }
