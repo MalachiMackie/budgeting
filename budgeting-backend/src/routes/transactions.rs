@@ -3,6 +3,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use http::StatusCode;
 use sqlx::MySqlPool;
 use utoipa::OpenApi;
 use uuid::Uuid;
@@ -51,7 +52,7 @@ pub async fn get_transactions(
     post,
     path = "/api/bank-accounts/{bankAccountId}/transactions",
     responses(
-        (status = OK, description = "Success", body = Uuid, content_type = "application/json")
+        (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreateTransactionRequest,
     params(
@@ -63,7 +64,7 @@ pub async fn create_transaction(
     State(db_pool): State<MySqlPool>,
     Path(bank_account_id): Path<Uuid>,
     Json(request): Json<CreateTransactionRequest>,
-) -> Result<Json<Uuid>, AppError> {
+) -> Result<(StatusCode, Json<Uuid>), AppError> {
     if request.payee_id.is_nil() {
         return Err(AppError::BadRequest(anyhow!("Payee Id must be set")));
     }
@@ -74,12 +75,12 @@ pub async fn create_transaction(
 
     let id = Uuid::new_v4();
 
-    let payee_result = db::payees::get_payee(&db_pool, id).await;
+    let payee_result = db::payees::get_payee(&db_pool, request.payee_id).await;
 
     match payee_result {
         Ok(_) => (),
         Err(DbError::NotFound) => {
-            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found")))
+            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found with id {}", request.payee_id)))
         }
         Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction"))),
     }
@@ -88,5 +89,5 @@ pub async fn create_transaction(
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create transaction")))?;
 
-    Ok(Json(id))
+    Ok((StatusCode::CREATED, Json(id)))
 }

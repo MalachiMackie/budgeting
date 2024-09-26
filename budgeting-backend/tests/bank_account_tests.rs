@@ -1,12 +1,16 @@
 mod common;
 
+use chrono::NaiveDate;
 use common::{OnceLockExt, TestResponseExt};
 
 use std::sync::OnceLock;
 
 use budgeting_backend::{
     db,
-    models::{BankAccount, CreateBankAccountRequest, CreateUserRequest},
+    models::{
+        BankAccount, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
+        CreateUserRequest
+    },
 };
 use common::*;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
@@ -45,17 +49,7 @@ pub async fn create_bank_account(db_pool: MySqlPool) {
     let test_server = integration_test_init(db_pool.clone());
     test_init(&db_pool).await;
 
-    let user_id = Uuid::new_v4();
-    db::users::create_user(
-        &db_pool,
-        user_id,
-        CreateUserRequest {
-            email: "me@somewhere.com".to_owned(),
-            name: "me".to_owned(),
-        },
-    )
-    .await
-    .unwrap();
+    let user_id = *USER_ID.unwrap();
 
     let response = test_server
         .post("/api/bank-accounts")
@@ -111,4 +105,50 @@ pub async fn get_bank_account_without_transactions(db_pool: MySqlPool) {
 
     response.assert_ok();
     response.assert_json(&expected_response);
+}
+
+#[sqlx::test]
+pub async fn get_bank_account_with_transactions(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
+    let user_id = *USER_ID.unwrap();
+    let payee_id = Uuid::new_v4();
+
+    db::payees::create_payee(
+        &db_pool,
+        payee_id,
+        CreatePayeeRequest::new("payee".into(), user_id),
+    )
+    .await
+    .unwrap();
+
+    db::transactions::create_transaction(
+        &db_pool,
+        Uuid::new_v4(),
+        bank_account_id,
+        CreateTransactionRequest::new(
+            payee_id,
+            Decimal::from_f32(12.34).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+
+    let response = test_server
+        .get(&format!(
+            "/api/bank-accounts/{bank_account_id}?user_id={user_id}"
+        ))
+        .await;
+
+    response.assert_ok();
+    response.assert_json(&BankAccount::new(
+        bank_account_id,
+        "My Bank Account".into(),
+        Decimal::from_f32(13.63).unwrap(),
+        user_id,
+        Decimal::from_f32(13.63 + 12.34).unwrap(),
+    ));
 }

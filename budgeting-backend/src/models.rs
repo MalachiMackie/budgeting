@@ -18,7 +18,7 @@ pub struct CreatePayeeRequest {
     pub user_id: Uuid,
 }
 
-#[derive(Deserialize, Serialize, ToSchema)]
+#[derive(Deserialize, Serialize, Constructor, PartialEq, Debug, ToSchema)]
 pub struct Transaction {
     pub id: Uuid,
     pub payee_id: Uuid,
@@ -29,7 +29,7 @@ pub struct Transaction {
     pub bank_account_id: Uuid,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, Constructor, ToSchema)]
 pub struct CreateTransactionRequest {
     pub payee_id: Uuid,
     #[schema(value_type = f32)]

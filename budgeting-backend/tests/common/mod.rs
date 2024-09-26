@@ -1,14 +1,34 @@
-use std::sync::OnceLock;
+use std::sync::{Once, OnceLock};
 
 use axum_test::{TestResponse, TestServer};
 use budgeting_backend::new_app;
 use http::StatusCode;
 use sqlx::MySqlPool;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub fn integration_test_init(db_pool: MySqlPool) -> TestServer {
+    init_test_logger();
+
     let server = TestServer::new(new_app(db_pool)).unwrap();
 
     server
+}
+
+static INITIALIZE_LOGGER: Once = Once::new();
+
+fn init_test_logger() {
+    INITIALIZE_LOGGER.call_once(|| {
+        let env_filter: EnvFilter = format!(
+            "{}=debug,tower_http=trace,axum::rejection=trace,sqlx=debug",
+            env!("CARGO_CRATE_NAME")
+        )
+        .into();
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    });
 }
 
 pub trait OnceLockExt<'a, T> {
