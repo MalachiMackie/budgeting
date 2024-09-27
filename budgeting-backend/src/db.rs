@@ -2,12 +2,14 @@ use crate::AppError;
 
 pub mod bank_accounts;
 pub mod payees;
+pub mod schedule;
 pub mod transactions;
 pub mod users;
 
 #[derive(Debug)]
 pub enum DbError {
     NotFound,
+    MappingError {error: anyhow::Error},
     Unknown,
 }
 
@@ -16,6 +18,7 @@ impl DbError {
         match self {
             Self::NotFound => AppError::NotFound(error),
             Self::Unknown => AppError::InternalServerError(error),
+            Self::MappingError { error } => AppError::InternalServerError(error)
         }
     }
 }
