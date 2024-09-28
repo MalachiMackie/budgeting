@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
-use crate::routes::schedule::{Schedule, SchedulePeriod};
+use crate::models::{Schedule, SchedulePeriod};
 
 use super::DbError;
 
@@ -159,7 +159,7 @@ mod tests {
     use super::*;
 
     mod mapping_tests {
-        use crate::routes::schedule::SchedulePeriodType;
+        use crate::models::SchedulePeriodType;
 
         use super::*;
 

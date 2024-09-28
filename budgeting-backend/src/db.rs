@@ -11,14 +11,14 @@ pub mod users;
 pub enum DbError {
     NotFound,
     MappingError { error: anyhow::Error },
-    Unknown {error: anyhow::Error},
+    Unknown { error: anyhow::Error },
 }
 
 impl DbError {
     pub fn to_app_error(self, error: anyhow::Error) -> AppError {
         match self {
             Self::NotFound => AppError::NotFound(error),
-            Self::Unknown {..} => AppError::InternalServerError(error),
+            Self::Unknown { .. } => AppError::InternalServerError(error),
             Self::MappingError { error } => AppError::InternalServerError(error),
         }
     }
@@ -26,6 +26,8 @@ impl DbError {
 
 impl From<sqlx::Error> for DbError {
     fn from(value: sqlx::Error) -> Self {
-        DbError::Unknown {error: value.into()}
+        DbError::Unknown {
+            error: value.into(),
+        }
     }
 }

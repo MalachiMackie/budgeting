@@ -5,9 +5,8 @@ use rust_decimal::Decimal;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::routes::{
-    budgets::{Budget, BudgetTarget},
-    schedule::Schedule,
+use crate::models::{
+    Budget, BudgetTarget,Schedule,
 };
 
 use super::{schedule, DbError};
@@ -115,10 +114,6 @@ impl TryFrom<(BudgetDbModel, Option<Schedule>)> for Budget {
 }
 
 pub async fn create_budget(db_pool: &MySqlPool, budget: Budget) -> Result<(), DbError> {
-    if let Some(BudgetTarget::Repeating { schedule, .. }) = &budget.target {
-        super::schedule::create_schedule(db_pool, schedule.clone()).await?;
-    }
-
     let db_model: BudgetDbModel = budget.into();
 
     sqlx::query!(
@@ -193,7 +188,7 @@ mod tests {
         use chrono::NaiveDate;
         use rust_decimal::prelude::FromPrimitive;
 
-        use crate::routes::{budgets::RepeatingTargetType, schedule::SchedulePeriod};
+        use crate::models::{RepeatingTargetType, SchedulePeriod};
 
         use super::*;
 
@@ -315,8 +310,7 @@ mod tests {
 
         use crate::{
             db,
-            models::CreateUserRequest,
-            routes::{budgets::RepeatingTargetType, schedule::SchedulePeriod},
+            models::{CreateUserRequest, RepeatingTargetType, SchedulePeriod},
         };
 
         use super::*;
@@ -326,18 +320,22 @@ mod tests {
             let id = Uuid::new_v4();
             let user_id = Uuid::new_v4();
             let schedule_id = Uuid::new_v4();
+            let schedule = Schedule {
+                        id: schedule_id,
+                        period: SchedulePeriod::Weekly {
+                            starting_on: NaiveDate::from_ymd_opt(2024, 9, 28).unwrap(),
+                        },
+                    };
+
+            db::schedule::create_schedule(&db_pool, schedule.clone()).await.unwrap();
+
             let budget = Budget {
                 id,
                 name: "name".into(),
                 target: Some(BudgetTarget::Repeating {
                     target_amount: Decimal::from_f32(1.1).unwrap(),
                     repeating_type: RepeatingTargetType::RequireRepeating,
-                    schedule: Schedule {
-                        id: schedule_id,
-                        period: SchedulePeriod::Weekly {
-                            starting_on: NaiveDate::from_ymd_opt(2024, 9, 28).unwrap(),
-                        },
-                    },
+                    schedule,
                 }),
                 user_id,
             };

@@ -10,9 +10,9 @@ use axum::{
     Router,
 };
 use http::header::{ACCEPT, CONTENT_TYPE};
-use routes::bank_accounts::{
+use routes::{bank_accounts::{
     create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi,
-};
+}, budgets::{create_budget, get_budgets, BudgetsApi}};
 use routes::payees::{create_payee, get_payees, PayeesApi};
 use routes::transactions::{create_transaction, get_transactions, TransactionApi};
 use routes::users::{create_user, get_user, get_users, UserApi};
@@ -40,6 +40,8 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
             "/api/bank-accounts/:bankAccountId/transactions",
             get(get_transactions).post(create_transaction),
         )
+        .route("/api/budgets",
+            get(get_budgets).post(create_budget))
         .with_state(db_pool)
         .layer(
             ServiceBuilder::new()
@@ -83,6 +85,7 @@ pub fn build_swagger_ui() -> SwaggerUi {
     openapi.merge(TransactionApi::openapi());
     openapi.merge(BankAccountApi::openapi());
     openapi.merge(UserApi::openapi());
+    openapi.merge(BudgetsApi::openapi());
 
     SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi)
 }
