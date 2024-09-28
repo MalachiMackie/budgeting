@@ -3,7 +3,7 @@ use chrono::NaiveDate;
 use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
-use crate::routes::schedule::{Schedule, SchedulePeriod, SchedulePeriodType};
+use crate::routes::schedule::{Schedule, SchedulePeriod};
 
 use super::DbError;
 
@@ -44,20 +44,13 @@ impl TryFrom<ScheduleDbModel> for Schedule {
                     ))?,
                 },
                 "Custom" => SchedulePeriod::Custom {
-                    period: match value.custom_period_type.as_deref() {
-                        None => {
-                            return Err(anyhow!(
-                                "custom_period_type must be set when period_type is custom"
-                            ))
-                        }
-                        Some("Weekly") => SchedulePeriodType::Weekly,
-                        Some("Fortnightly") => SchedulePeriodType::Fortnightly,
-                        Some("Monthly") => SchedulePeriodType::Monthly,
-                        Some("Yearly") => SchedulePeriodType::Yearly,
-                        Some(other) => {
-                            return Err(anyhow!("Unexpected custom_period_type {}", other))
-                        }
-                    },
+                    period: value
+                        .custom_period_type
+                        .as_deref()
+                        .ok_or(anyhow!(
+                            "custom_period_type must be set when period_type is custom"
+                        ))?
+                        .parse()?,
                     every_x_periods: value.custom_period_every_count.ok_or(anyhow!(
                         "Expected custom_period_every_count to be set when period_type is custom"
                     ))? as u8,
@@ -166,6 +159,8 @@ mod tests {
     use super::*;
 
     mod mapping_tests {
+        use crate::routes::schedule::SchedulePeriodType;
+
         use super::*;
 
         #[test]
@@ -251,45 +246,56 @@ mod tests {
                 (
                     Schedule {
                         id: id,
-                        period: SchedulePeriod::Custom { period: SchedulePeriodType::Fortnightly, every_x_periods: 1 }
+                        period: SchedulePeriod::Custom {
+                            period: SchedulePeriodType::Fortnightly,
+                            every_x_periods: 1,
+                        },
                     },
                     ScheduleDbModel {
                         custom_period_type: Some("Fortnightly".into()),
                         ..custom_db_model.clone()
                     },
-                ),(
+                ),
+                (
                     Schedule {
                         id: id,
-                        period: SchedulePeriod::Custom { period: SchedulePeriodType::Monthly, every_x_periods: 1 }
+                        period: SchedulePeriod::Custom {
+                            period: SchedulePeriodType::Monthly,
+                            every_x_periods: 1,
+                        },
                     },
                     ScheduleDbModel {
                         custom_period_type: Some("Monthly".into()),
                         ..custom_db_model.clone()
                     },
-                ),(
+                ),
+                (
                     Schedule {
                         id: id,
-                        period: SchedulePeriod::Custom { period: SchedulePeriodType::Yearly, every_x_periods: 1 }
+                        period: SchedulePeriod::Custom {
+                            period: SchedulePeriodType::Yearly,
+                            every_x_periods: 1,
+                        },
                     },
                     ScheduleDbModel {
                         custom_period_type: Some("Yearly".into()),
                         ..custom_db_model.clone()
                     },
-                )
+                ),
             ];
-            
+
             for (domain, db_model) in pairs {
                 let mapped_domain: ScheduleDbModel = domain.clone().into();
                 assert_eq!(mapped_domain, db_model);
-                
+
                 let mapped_db_model: Result<Schedule, _> = db_model.try_into();
                 match mapped_db_model {
                     Ok(mapped_db_model) => assert_eq!(mapped_db_model, domain),
-                    Err(e) => panic!("{}", e)
+                    Err(e) => panic!("{}", e),
                 }
             }
         }
-        
+
         #[test]
         pub fn test_mapping_failures() {
             let id = Uuid::new_v4();
@@ -311,22 +317,26 @@ mod tests {
             let invalid_period_type: Result<Schedule, _> = ScheduleDbModel {
                 period_type: "aoeu".into(),
                 ..non_custom_db_model.clone()
-            }.try_into();
+            }
+            .try_into();
             assert!(invalid_period_type.is_err());
-            let missing_custom_type: Result<Schedule, _>  = ScheduleDbModel {
+            let missing_custom_type: Result<Schedule, _> = ScheduleDbModel {
                 custom_period_type: None,
                 ..custom_db_model.clone()
-            }.try_into();
+            }
+            .try_into();
             assert!(missing_custom_type.is_err());
             let invalid_custom_type: Result<Schedule, _> = ScheduleDbModel {
                 custom_period_type: Some("aoeu".into()),
                 ..custom_db_model.clone()
-            }.try_into();
+            }
+            .try_into();
             assert!(invalid_custom_type.is_err());
             let missing_custom_every_count: Result<Schedule, _> = ScheduleDbModel {
                 custom_period_every_count: None,
                 ..custom_db_model.clone()
-            }.try_into();
+            }
+            .try_into();
             assert!(missing_custom_every_count.is_err());
         }
     }

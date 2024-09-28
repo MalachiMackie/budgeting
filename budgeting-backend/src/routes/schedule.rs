@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use anyhow::anyhow;
 use chrono::NaiveDate;
 use uuid::Uuid;
 
@@ -33,6 +36,20 @@ pub enum SchedulePeriodType {
     Fortnightly,
     Monthly,
     Yearly,
+}
+
+impl FromStr for SchedulePeriodType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Weekly" => Ok(Self::Weekly),
+            "Fortnightly" => Ok(Self::Fortnightly),
+            "Monthly" => Ok(Self::Monthly),
+            "Yearly" => Ok(Self::Yearly),
+            other => Err(anyhow!("Unexpected SchedulePeriodType {other}"))
+        }
+    }
 }
 
 impl ToString for SchedulePeriodType {
