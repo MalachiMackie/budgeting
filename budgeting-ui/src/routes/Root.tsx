@@ -1,8 +1,13 @@
-import { IconHome, IconMoneybag } from "@tabler/icons-react";
+import {
+  IconHome,
+  IconMoneybag,
+  IconPlus,
+  IconUsersGroup,
+} from "@tabler/icons-react";
 import { QueryClient } from "@tanstack/react-query";
 import { Outlet, useLoaderData } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
-import { SideNav } from "../components/SideNav/SideNav";
+import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
 
 export function Root(): JSX.Element {
   const bankAccounts = useLoaderData() as BankAccount[];
@@ -17,12 +22,32 @@ export function Root(): JSX.Element {
             label: "Accounts",
             icon: IconMoneybag,
             links: [
-              { label: "All", link: "/accounts" },
-              ...bankAccounts.map((x) => ({
-                label: `${x.name}`,
-                subLabel: `$${x.balance.toFixed(2)}`,
-                link: `/accounts/${x.id}`,
-              })),
+              {
+                type: "link",
+                label: "All",
+                link: "/accounts",
+                icon: IconUsersGroup,
+              },
+              ...bankAccounts.map(
+                (x) =>
+                  ({
+                    type: "link",
+                    label: `${x.name}`,
+                    subLabel: `$${x.balance.toFixed(2)}`,
+                    link: `/accounts/${x.id}`,
+                  }) satisfies Extract<
+                    SideNavProps["items"][number],
+                    { type: "group" }
+                  >["links"][number]
+              ),
+              {
+                label: "Create New",
+                type: "button",
+                onClick: () => {
+                  alert("hi");
+                },
+                icon: IconPlus,
+              },
             ],
           },
         ]}

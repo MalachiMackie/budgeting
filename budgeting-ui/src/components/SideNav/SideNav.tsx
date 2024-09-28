@@ -1,21 +1,16 @@
 import { Group, ScrollArea, Text } from "@mantine/core";
-import { FC } from "react";
-import { LinksGroup } from "./LinksGroup/LinksGroup";
+import { LinksGroup, LinksGroupProps } from "./LinksGroup/LinksGroup";
+import { NavButton, NavButtonProps } from "./NavButton";
 import { NavLink, NavLinkProps } from "./NavLink";
 import "./SideNav.css";
 
 // From here: https://ui.mantine.dev/component/navbar-nested/
 
-type Group = {
-  label: string;
-  icon: FC<any>;
-  links: Omit<NavLinkProps, "isRoot">[];
-};
-
 export type SideNavProps = {
   items: (
-    | ({ type: "group" } & Group)
-    | ({ type: "link" } & Omit<NavLinkProps, "isRoot">)
+    | ({ type: "group" } & LinksGroupProps)
+    | ({ type: "link" } & NavLinkProps)
+    | ({ type: "button" } & NavButtonProps)
   )[];
 };
 
@@ -26,6 +21,8 @@ export function SideNav({ items: groups }: SideNavProps): JSX.Element {
         return <LinksGroup key={x.label} {...x} />;
       case "link":
         return <NavLink isRoot key={x.label} {...x} />;
+      case "button":
+        return <NavButton isRoot key={x.label} {...x} />;
     }
   });
 

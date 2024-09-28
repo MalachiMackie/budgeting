@@ -1,16 +1,20 @@
-import { Box, Collapse } from "@mantine/core";
-import { IconCalendarStats } from "@tabler/icons-react";
+import { Collapse } from "@mantine/core";
 import { useState } from "react";
+import { NavButton, NavButtonProps } from "../NavButton";
 import { NavLink, NavLinkProps } from "../NavLink";
 import { SideNavItem } from "../SideNavItem";
 import "./LinksGroup.css";
 
-interface LinksGroupProps {
+export type LinksGroupProps = {
   icon: React.FC<any>;
   label: string;
   initiallyOpened?: boolean;
-  links?: NavLinkProps[];
-}
+  links: LinkOrButton[];
+};
+
+type LinkOrButton =
+  | ({ type: "link" } & NavLinkProps)
+  | ({ type: "button" } & NavButtonProps);
 
 export function LinksGroup({
   icon,
@@ -21,9 +25,14 @@ export function LinksGroup({
   const hasLinks = Array.isArray(links);
   const [opened, setOpened] = useState(initiallyOpened || false);
 
-  const items = (hasLinks ? links : []).map((link) => (
-    <NavLink key={link.label} {...link} />
-  ));
+  const items = (hasLinks ? links : []).map((link) => {
+    switch (link.type) {
+      case "link":
+        return <NavLink key={link.label} {...link} />;
+      case "button":
+        return <NavButton key={link.label} {...link} />;
+    }
+  });
 
   return (
     <>
@@ -37,23 +46,5 @@ export function LinksGroup({
       />
       {hasLinks ? <Collapse in={opened}>{items}</Collapse> : null}
     </>
-  );
-}
-
-const mockdata = {
-  label: "Releases",
-  icon: IconCalendarStats,
-  links: [
-    { label: "Upcoming releases", link: "/" },
-    { label: "Previous releases", link: "/" },
-    { label: "Releases schedule", link: "/" },
-  ],
-};
-
-export function NavbarLinksGroup() {
-  return (
-    <Box mih={220} p="md">
-      <LinksGroup {...mockdata} />
-    </Box>
   );
 }
