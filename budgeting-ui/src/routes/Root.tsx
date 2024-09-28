@@ -5,18 +5,24 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react";
 import { QueryClient } from "@tanstack/react-query";
-import { Outlet, useLoaderData } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, useLoaderData, useRevalidator } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
 import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
+import { CreateBankAccountModal } from "../views/CreateBankAccountModal";
 
 export function Root(): JSX.Element {
   const bankAccounts = useLoaderData() as BankAccount[];
+  const [showCreateBankAccount, setShowCreateBankAccount] = useState(false);
+
+  const { revalidate } = useRevalidator();
 
   return (
     <div style={{ display: "flex" }}>
       <SideNav
         items={[
           { type: "link", label: "Home", link: "/", icon: IconHome },
+          { type: "link", label: "Budgets", link: "/budgets", icon: IconHome },
           {
             type: "group",
             label: "Accounts",
@@ -44,7 +50,7 @@ export function Root(): JSX.Element {
                 label: "Create New",
                 type: "button",
                 onClick: () => {
-                  alert("hi");
+                  setShowCreateBankAccount(true);
                 },
                 icon: IconPlus,
               },
@@ -54,6 +60,15 @@ export function Root(): JSX.Element {
       />
       <div style={{ flexGrow: 1, padding: "1rem" }}>
         <Outlet />
+        {showCreateBankAccount && (
+          <CreateBankAccountModal
+            onClose={() => setShowCreateBankAccount(false)}
+            onSuccess={() => {
+              setShowCreateBankAccount(false);
+              revalidate();
+            }}
+          />
+        )}
       </div>
     </div>
   );

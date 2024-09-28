@@ -12,6 +12,7 @@ import { BudgetingApi } from "./api/budgetingApi";
 import { UserIdContext, useUserId } from "./hooks/useUserId";
 import { AccountPage, createAccountLoader } from "./routes/AccountPage";
 import { AccountsPage, createAccountsLoader } from "./routes/AccountsPage";
+import { BudgetsPage, createBudgetsLoader } from "./routes/BudgetsPage";
 import { createRootLoader, Root } from "./routes/Root";
 
 export const BudgetingApiContext = createContext<BudgetingApi>(null!);
@@ -30,6 +31,9 @@ function App() {
   useEffect(() => {
     let load = async () => {
       let users = await budgetingApi.getUsers();
+      if (users.length == 0) {
+        throw new Error("No users!");
+      }
       setUser(users[0].id);
     };
 

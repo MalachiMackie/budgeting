@@ -59,6 +59,16 @@ export const BudgetingApi = {
     let json = await result.json();
     return json as Budget[];
   },
+  async createBankAccount(request: CreateBankAccountRequest): Promise<string> {
+    let result = await fetch(`http://localhost:3000/api/bank-accounts`, {
+      method: 'POSt',
+      body: JSON.stringify(request),
+      headers: {"Content-Type": 'application/json'}
+    });
+    
+    let json = await result.json();
+    return json as string;
+  },
   async createBudget(request: CreateBudgetRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/budgets`, {
         method: "POST",
@@ -103,6 +113,12 @@ export type BankAccount = {
   initial_amount: number;
   balance: number;
 };
+
+export type CreateBankAccountRequest = {
+  name: string;
+  initial_amount: number;
+  user_id: string;
+}
 
 export type Budget = {
   id: string;
