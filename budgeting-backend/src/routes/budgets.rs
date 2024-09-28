@@ -11,14 +11,14 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, DbError},
-    models::{Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, Schedule},
+    models::{Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType},
     AppError,
 };
 
 #[derive(OpenApi)]
 #[openapi(
     paths(get_budgets, create_budget),
-    components(schemas(Budget, CreateBudgetRequest))
+    components(schemas(Budget, CreateBudgetRequest, BudgetTarget, CreateBudgetRequest, Schedule, SchedulePeriod, RepeatingTargetType, SchedulePeriodType))
 )]
 pub struct BudgetsApi;
 

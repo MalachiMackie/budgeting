@@ -123,7 +123,7 @@ pub enum BudgetTarget {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, ToSchema)]
 pub enum RepeatingTargetType {
     BuildUpTo,
     RequireRepeating,
@@ -159,18 +159,18 @@ impl ToString for BudgetTarget {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub struct Schedule {
     pub id: Uuid,
     pub period: SchedulePeriod,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct CreateScheduleRequest {
     pub period: SchedulePeriod,
 }
 
-#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub enum SchedulePeriod {
     Weekly {
         starting_on: NaiveDate,
@@ -190,7 +190,7 @@ pub enum SchedulePeriod {
     },
 }
 
-#[derive(PartialEq, Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(PartialEq, Debug, Clone, Copy, Deserialize, Serialize, ToSchema)]
 pub enum SchedulePeriodType {
     Weekly,
     Fortnightly,
