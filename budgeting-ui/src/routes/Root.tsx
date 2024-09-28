@@ -21,16 +21,30 @@ export function Root(): JSX.Element {
     <div style={{ display: "flex" }}>
       <SideNav
         items={[
-          { type: "link", label: "Home", link: "/", icon: IconHome },
-          { type: "link", label: "Budgets", link: "/budgets", icon: IconHome },
+          {
+            type: "link",
+            id: "home",
+            label: "Home",
+            link: "/",
+            icon: IconHome,
+          },
+          {
+            type: "link",
+            id: "budgets",
+            label: "Budgets",
+            link: "/budgets",
+            icon: IconHome,
+          },
           {
             type: "group",
             label: "Accounts",
             icon: IconMoneybag,
+            id: "accounts",
             links: [
               {
                 type: "link",
                 label: "All",
+                id: "all",
                 link: "/accounts",
                 icon: IconUsersGroup,
               },
@@ -38,6 +52,7 @@ export function Root(): JSX.Element {
                 (x) =>
                   ({
                     type: "link",
+                    id: x.id,
                     label: `${x.name}`,
                     subLabel: `$${x.balance.toFixed(2)}`,
                     link: `/accounts/${x.id}`,
@@ -49,6 +64,7 @@ export function Root(): JSX.Element {
               {
                 label: "Create New",
                 type: "button",
+                id: "create-new",
                 onClick: () => {
                   setShowCreateBankAccount(true);
                 },

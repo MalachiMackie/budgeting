@@ -28,9 +28,9 @@ export function LinksGroup({
   const items = (hasLinks ? links : []).map((link) => {
     switch (link.type) {
       case "link":
-        return <NavLink key={link.label} {...link} />;
+        return <NavLink key={link.id} {...link} />;
       case "button":
-        return <NavButton key={link.label} {...link} />;
+        return <NavButton key={link.id} {...link} />;
     }
   });
 

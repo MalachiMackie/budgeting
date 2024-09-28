@@ -1,4 +1,4 @@
-import { Box, rem, Text, ThemeIcon } from "@mantine/core";
+import { Flex, rem, Text, ThemeIcon } from "@mantine/core";
 import { FC } from "react";
 import { Link } from "react-router-dom";
 
@@ -8,9 +8,11 @@ export type NavLinkProps = {
   subLabel?: string;
   isRoot?: boolean;
   icon?: FC<any>;
+  id: string;
 };
 
 export function NavLink({
+  id,
   link,
   label,
   subLabel,
@@ -24,7 +26,7 @@ export function NavLink({
         " "
       )}
       to={link}
-      key={label}
+      key={id}
     >
       {Icon && (
         <ThemeIcon variant="light" size={30}>
@@ -32,10 +34,10 @@ export function NavLink({
         </ThemeIcon>
       )}
 
-      <Box display={"flex"} className="label">
+      <Flex style={{ flexGrow: "1" }} className="label">
         <span>{label}</span>
         {subLabel && <span style={{ marginLeft: "auto" }}>{subLabel}</span>}
-      </Box>
+      </Flex>
     </Text>
   );
 }

@@ -15,7 +15,7 @@ export function NewTransactionRow({
   save,
 }: {
   payees: Payee[];
-  save: (x: CreateTransactionRequest) => Promise<void>;
+  save: (x: CreateTransactionRequest) => Promise<string>;
 }): JSX.Element {
   // todo: show loading
   const [date, setDate] = useState(new Date());

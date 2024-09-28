@@ -8,9 +8,11 @@ export type NavButtonProps = {
   subLabel?: string;
   isRoot?: boolean;
   icon?: FC<any>;
+  id: string;
 };
 
 export function NavButton({
+  id,
   onClick,
   label,
   subLabel,
@@ -24,7 +26,7 @@ export function NavButton({
         isRoot ? "rootButton" : "",
         Icon ? "hasIcon" : "",
       ].join(" ")}
-      key={label}
+      key={id}
       onClick={onClick}
     >
       {Icon && (
