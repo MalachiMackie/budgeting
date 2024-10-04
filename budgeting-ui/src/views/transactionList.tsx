@@ -2,6 +2,7 @@ import { Table } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreateTransactionRequest, Transaction } from "../api/budgetingApi";
 import { useBudgetingApi } from "../App";
+import { queryKeys } from "../queryKeys";
 import { NewTransactionRow } from "./NewTransactionRow";
 
 export default function TransactionList({
@@ -15,22 +16,22 @@ export default function TransactionList({
   const queryClient = useQueryClient();
 
   const { data: payees, isLoading: payeesLoading } = useQuery({
-    queryKey: ["payees", userId],
+    queryKey: queryKeys.payees.fetch(userId),
     queryFn: () => budgetingApi.getPayees(userId),
   });
 
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ["transactions", bankAccountId],
+    queryKey: queryKeys.transactions.fetch(bankAccountId),
     queryFn: () => budgetingApi.getTransactions(bankAccountId),
   });
 
   const createTransaction = useMutation({
-    mutationKey: ["create-transaction"],
+    mutationKey: queryKeys.transactions.create,
     mutationFn: (request: CreateTransactionRequest) =>
       budgetingApi.createTransaction(request, bankAccountId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["transactions", bankAccountId],
+        queryKey: queryKeys.transactions.fetch(bankAccountId),
       });
     },
   });
@@ -82,7 +83,11 @@ export default function TransactionList({
               <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
             </Table.Tr>
           ))}
-          {transactions.length === 0 && <Table.Tr><Table.Td colSpan={3}>No transactions</Table.Td></Table.Tr>}
+          {transactions.length === 0 && (
+            <Table.Tr>
+              <Table.Td colSpan={3}>No transactions</Table.Td>
+            </Table.Tr>
+          )}
         </Table.Tbody>
       </Table>
     </>

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
+import { queryKeys } from "../queryKeys";
 
 export type CreateBankAccountModalProps = {
   onClose: () => void;
@@ -21,7 +22,7 @@ export function CreateBankAccountModal({
   const queryClient = useQueryClient();
 
   const create = useMutation({
-    mutationKey: ["create-bank-account"],
+    mutationKey: queryKeys.bankAccounts.create,
     mutationFn: () =>
       api.createBankAccount({
         initial_amount: initialBalance,
@@ -29,7 +30,9 @@ export function CreateBankAccountModal({
         user_id: userId,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.bankAccounts.fetch,
+      });
       onSuccess();
     },
   });

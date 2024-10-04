@@ -8,6 +8,7 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useState } from "react";
 import { CreateTransactionRequest, Payee } from "../api/budgetingApi";
+import { formatDate } from "../utils/formatDate";
 import "./NewTransactionRow.css";
 
 export function NewTransactionRow({
@@ -76,21 +77,4 @@ export function NewTransactionRow({
       </Table.Tr>
     </>
   );
-}
-
-function formatDate(date: Date): string {
-  let sb: (string | number)[] = [date.getFullYear(), "-"];
-  const month = date.getMonth() + 1;
-  if (month < 10) {
-    sb.push("0");
-  }
-  sb.push(month, "-");
-
-  const dayOfMonth = date.getDate();
-  if (dayOfMonth < 10) {
-    sb.push("0");
-  }
-  sb.push(dayOfMonth);
-
-  return sb.join("");
 }

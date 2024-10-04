@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Outlet, useLoaderData, useRevalidator } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
 import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
+import { queryKeys } from "../queryKeys";
 import { CreateBankAccountModal } from "../views/CreateBankAccountModal";
 
 export function Root(): JSX.Element {
@@ -97,7 +98,7 @@ export function createRootLoader(
 ) {
   return () => {
     return queryClient.fetchQuery({
-      queryKey: ["bank-accounts"],
+      queryKey: queryKeys.bankAccounts.fetch,
       queryFn: () => api.getBankAccounts(userId),
     });
   };

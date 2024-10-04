@@ -22,7 +22,7 @@ export function createBudgetsLoader(
 ) {
   return () => {
     return queryClient.fetchQuery({
-      queryKey: ["budgets"],
+      queryKey: queryKeys.budgets.fetch,
       queryFn: () => api.getBudgets(userId),
     });
   };

@@ -2,6 +2,7 @@ import { Title } from "@mantine/core";
 import { QueryClient } from "@tanstack/react-query";
 import { useLoaderData } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
+import { queryKeys } from "../queryKeys";
 import { BankAccountList } from "../views/BankAccountList";
 
 export function AccountsPage(): JSX.Element {
@@ -22,7 +23,7 @@ export function createAccountsLoader(
 ) {
   return () => {
     return queryClient.fetchQuery({
-      queryKey: ["bank-accounts"],
+      queryKey: queryKeys.bankAccounts.fetch,
       queryFn: () => api.getBankAccounts(userId),
     });
   };
