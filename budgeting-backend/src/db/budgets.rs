@@ -5,9 +5,7 @@ use rust_decimal::Decimal;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-use crate::models::{
-    Budget, BudgetTarget,Schedule,
-};
+use crate::models::{Budget, BudgetTarget, Schedule};
 
 use super::{schedule, DbError};
 
@@ -148,7 +146,11 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
         .collect::<Result<Box<[Uuid]>, _>>()
         .map_err(|e| DbError::MappingError { error: e.into() })?;
 
-    let schedules = schedule::get_schedules_by_ids(db_pool, &*schedule_ids).await?;
+    let schedules = if schedule_ids.is_empty() {
+        Box::new([])
+    } else {
+        schedule::get_schedules_by_ids(db_pool, &*schedule_ids).await?
+    };
 
     let mut schedules: HashMap<_, _> = schedules
         .into_vec()
@@ -321,13 +323,15 @@ mod tests {
             let user_id = Uuid::new_v4();
             let schedule_id = Uuid::new_v4();
             let schedule = Schedule {
-                        id: schedule_id,
-                        period: SchedulePeriod::Weekly {
-                            starting_on: NaiveDate::from_ymd_opt(2024, 9, 28).unwrap(),
-                        },
-                    };
+                id: schedule_id,
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 9, 28).unwrap(),
+                },
+            };
 
-            db::schedule::create_schedule(&db_pool, schedule.clone()).await.unwrap();
+            db::schedule::create_schedule(&db_pool, schedule.clone())
+                .await
+                .unwrap();
 
             let budget = Budget {
                 id,
@@ -336,6 +340,36 @@ mod tests {
                     target_amount: Decimal::from_f32(1.1).unwrap(),
                     repeating_type: RepeatingTargetType::RequireRepeating,
                     schedule,
+                }),
+                user_id,
+            };
+
+            db::users::create_user(
+                &db_pool,
+                user_id,
+                CreateUserRequest::new("name".into(), "email@email.com".into()),
+            )
+            .await
+            .unwrap();
+
+            let result = create_budget(&db_pool, budget.clone()).await;
+            assert!(result.is_ok());
+
+            let fetched = get_budgets(&db_pool, user_id).await;
+            assert!(fetched.is_ok());
+            assert_eq!(fetched.unwrap(), vec![budget].into_boxed_slice())
+        }
+
+        #[sqlx::test]
+        pub async fn get_budgets_without_schedule(db_pool: MySqlPool) {
+            let id = Uuid::new_v4();
+            let user_id = Uuid::new_v4();
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::from_f32(1.1).unwrap(),
                 }),
                 user_id,
             };
