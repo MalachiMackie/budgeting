@@ -78,6 +78,11 @@ export function BudgetingRouterWrapper() {
           element: <AccountsPage />,
           loader: createAccountsLoader(api, queryClient, userId),
         },
+        {
+          path: "/budgets",
+          element: <BudgetsPage />,
+          loader: createBudgetsLoader(api, queryClient, userId),
+        },
       ],
     },
   ]);

@@ -82,6 +82,7 @@ export default function TransactionList({
               <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
             </Table.Tr>
           ))}
+          {transactions.length === 0 && <Table.Tr><Table.Td colSpan={3}>No transactions</Table.Td></Table.Tr>}
         </Table.Tbody>
       </Table>
     </>

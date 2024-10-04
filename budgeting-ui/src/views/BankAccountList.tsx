@@ -22,7 +22,7 @@ export function BankAccountList({
           {bankAccounts?.map((x) => (
             <Table.Tr key={x.id} onClick={() => navigate(`/accounts/${x.id}`)}>
               <Table.Td>{x.name}</Table.Td>
-              <Table.Td>{x.balance}</Table.Td>
+              <Table.Td>${x.balance.toFixed(2)}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
