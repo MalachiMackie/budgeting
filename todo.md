@@ -1,4 +1,4 @@
-- Edit historical transactions
+- Edit historical transactions (BE Done)
 - Delete budget
 - Save pay period
 - Budget assignment

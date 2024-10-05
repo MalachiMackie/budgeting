@@ -21,7 +21,7 @@ pub struct CreatePayeeRequest {
     pub user_id: Uuid,
 }
 
-#[derive(Deserialize, Serialize, Constructor, PartialEq, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, Constructor, PartialEq, Debug, ToSchema, Clone)]
 pub struct Transaction {
     pub id: Uuid,
     pub payee_id: Uuid,
@@ -235,4 +235,12 @@ impl ToString for SchedulePeriod {
             SchedulePeriod::Custom { .. } => "Custom".into(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Constructor)]
+pub struct UpdateTransactionRequest {
+    pub amount: Decimal,
+    pub payee_id: Uuid,
+    pub budget_id: Uuid,
+    pub date: NaiveDate
 }

@@ -10,14 +10,14 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, DbError},
-    models::{CreateTransactionRequest, Transaction},
+    models::{CreateTransactionRequest, Transaction, UpdateTransactionRequest},
     AppError,
 };
 
 #[derive(OpenApi)]
 #[openapi(
     paths(get_transactions, create_transaction),
-    components(schemas(Transaction, CreateTransactionRequest))
+    components(schemas(Transaction, CreateTransactionRequest, UpdateTransactionRequest))
 )]
 pub struct TransactionApi;
 
@@ -90,4 +90,36 @@ pub async fn create_transaction(
         .map_err(|e| e.to_app_error(anyhow!("Could not create transaction")))?;
 
     Ok((StatusCode::CREATED, Json(id)))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/bank-accounts/{bankAccountId}/transactions/{transactionId}",
+    responses(
+        (status = OK, description = "Success",)
+    ),
+    request_body = UpdateTransactionRequest,
+    params(
+        ("bankAccountId" = Uuid, Path,),
+        ("transactionId" = Uuid, Path,)
+    ),
+    tag = API_TAG)]
+pub async fn update_transaction(
+    State(db_pool): State<MySqlPool>,
+    Path((_bank_account_id, transaction_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<UpdateTransactionRequest>,
+) -> Result<(), AppError> {
+    let transaction = db::transactions::get_transaction(&db_pool, transaction_id).await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
+    
+    db::transactions::update_transaction(&db_pool, Transaction::new(
+        transaction.id,
+        request.payee_id,
+        request.date,
+        request.amount,
+        transaction.bank_account_id,
+        request.budget_id)).await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
+    
+    Ok(())
 }
