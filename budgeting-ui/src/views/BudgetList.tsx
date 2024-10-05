@@ -18,7 +18,7 @@ export function BudgetList({ budgets }: BudgetListProps): JSX.Element {
       </Table.Thead>
       <Table.Tbody>
         {budgets.map((b) => (
-          <BudgetRow budget={b} />
+          <BudgetRow key={b.id} budget={b} />
         ))}
       </Table.Tbody>
     </Table>

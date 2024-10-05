@@ -9,6 +9,7 @@ import { DatePickerInput } from "@mantine/dates";
 import { useState } from "react";
 import { CreateTransactionRequest, Payee } from "../api/budgetingApi";
 import { formatDate } from "../utils/formatDate";
+import { CreatePayeeModal } from "./CreatePayeeModal";
 import "./NewTransactionRow.css";
 
 export function NewTransactionRow({
@@ -23,6 +24,8 @@ export function NewTransactionRow({
   const [amount, setAmount] = useState<number | undefined>(undefined);
   const [payeeId, setPayeeId] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [showCreatePayee, setShowCreatePayee] = useState(false);
+
   const handleSaveClick = async () => {
     if (!payeeId) {
       alert("Cannot save transaction without a payee");
@@ -49,6 +52,19 @@ export function NewTransactionRow({
     }
   };
 
+  const handlePayeeChange = (x: string | null | undefined) => {
+    if (!x) {
+      return;
+    }
+
+    if (x === "create-new") {
+      setShowCreatePayee(true);
+      return;
+    }
+
+    setPayeeId(x);
+  };
+
   return (
     <>
       {saving && <LoadingOverlay />}
@@ -64,8 +80,11 @@ export function NewTransactionRow({
         </Table.Td>
         <Table.Td>
           <Select
-            onChange={(x) => x && setPayeeId(x)}
-            data={payees.map((x) => ({ value: x.id, label: x.name }))}
+            onChange={handlePayeeChange}
+            data={[
+              { value: "create-new", label: "+ Create Payee" },
+              ...payees.map((x) => ({ value: x.id, label: x.name })),
+            ]}
             value={payeeId}
           />
         </Table.Td>
@@ -75,6 +94,15 @@ export function NewTransactionRow({
           <Button onClick={handleSaveClick}>Save</Button>
         </Table.Td>
       </Table.Tr>
+      {showCreatePayee && (
+        <CreatePayeeModal
+          onCancel={() => setShowCreatePayee(false)}
+          onSuccess={(payee) => {
+            setPayeeId(payee.id);
+            setShowCreatePayee(false);
+          }}
+        />
+      )}
     </>
   );
 }

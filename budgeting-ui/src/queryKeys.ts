@@ -11,6 +11,7 @@ export const queryKeys = {
     create: ["create-bank-account"],
   },
   payees: {
+    create: ["create-payee"],
     fetch: (userId: string) => ["payees", userId],
   },
   transactions: {

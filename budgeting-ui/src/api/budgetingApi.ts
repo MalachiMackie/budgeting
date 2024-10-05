@@ -29,6 +29,16 @@ export const BudgetingApi = {
     let json = await result.json();
     return json as Payee[];
   },
+  async createPayee(request: CreatePayeeRequest): Promise<string> {
+    let result = await fetch(`http://localhost:3000/api/payees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+
+    let json = await result.json();
+    return json as string;
+  },
   async getUsers(): Promise<User[]> {
     let result = await fetch("http://localhost:3000/api/users");
     let json = await result.json();
@@ -61,24 +71,24 @@ export const BudgetingApi = {
   },
   async createBankAccount(request: CreateBankAccountRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/bank-accounts`, {
-      method: 'POSt',
+      method: "POSt",
       body: JSON.stringify(request),
-      headers: {"Content-Type": 'application/json'}
+      headers: { "Content-Type": "application/json" },
     });
-    
+
     let json = await result.json();
     return json as string;
   },
   async createBudget(request: CreateBudgetRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/budgets`, {
-        method: "POST",
-        body: JSON.stringify(request),
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      let json = await result.json();
-      
-      return json as string;
+      method: "POST",
+      body: JSON.stringify(request),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    let json = await result.json();
+
+    return json as string;
   },
 };
 
@@ -118,7 +128,7 @@ export type CreateBankAccountRequest = {
   name: string;
   initial_amount: number;
   user_id: string;
-}
+};
 
 export type Budget = {
   id: string;
@@ -174,3 +184,8 @@ export type SchedulePeriodType =
   | "Fortnightly"
   | "Monthly"
   | "Yearly";
+
+export type CreatePayeeRequest = {
+  name: string;
+  user_id: string;
+};

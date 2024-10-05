@@ -79,7 +79,7 @@ export default function TransactionList({
           {[...transactions].sort(compareTransactions).map((x) => (
             <Table.Tr key={x.id}>
               <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
-              <Table.Td>${x.amount}</Table.Td>
+              <Table.Td>${x.amount.toFixed(2)}</Table.Td>
               <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
             </Table.Tr>
           ))}
