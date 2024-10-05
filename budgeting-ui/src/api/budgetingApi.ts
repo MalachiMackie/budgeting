@@ -99,6 +99,7 @@ export type Transaction = {
   payee_id: string;
   amount: number;
   date: string;
+  budget_id: string;
 };
 
 export type Payee = {
@@ -110,6 +111,7 @@ export type CreateTransactionRequest = {
   payee_id: string;
   amount: number;
   date: string;
+  budget_id: string
 };
 
 export type User = {

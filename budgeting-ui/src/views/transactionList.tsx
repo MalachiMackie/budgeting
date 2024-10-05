@@ -20,6 +20,11 @@ export default function TransactionList({
     queryFn: () => budgetingApi.getPayees(userId),
   });
 
+  const { data: budgets, isLoading: budgetsLoading } = useQuery({
+    queryKey: queryKeys.budgets.fetch,
+    queryFn: () => budgetingApi.getBudgets(userId),
+  });
+
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
     queryKey: queryKeys.transactions.fetch(bankAccountId),
     queryFn: () => budgetingApi.getTransactions(bankAccountId),
@@ -36,20 +41,22 @@ export default function TransactionList({
     },
   });
 
-  const loading = transactionsLoading || payeesLoading;
+  const loading = transactionsLoading || payeesLoading || budgetsLoading;
 
   if (loading) {
     return <>Loading...</>;
   }
 
-  if (!payees || !transactions) {
+  if (!payees || !transactions || !budgets) {
     return <>Failed to load things</>;
   }
 
   let payeesMap = new Map(payees.map((x) => [x.id, x]));
+  let budgetsMap = new Map(budgets.map((x) => [x.id, x]));
 
   const headers = [
     { key: "date", header: "Date" },
+    { key: "budget", header: "Budget" },
     { key: "amount", header: "Amount" },
     { key: "payee", header: "Payee" },
   ];
@@ -75,10 +82,12 @@ export default function TransactionList({
           <NewTransactionRow
             save={createTransaction.mutateAsync}
             payees={payees}
+            budgets={budgets}
           />
           {[...transactions].sort(compareTransactions).map((x) => (
             <Table.Tr key={x.id}>
               <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
+              <Table.Td>{budgetsMap.get(x.budget_id)?.name}</Table.Td>
               <Table.Td>${x.amount.toFixed(2)}</Table.Td>
               <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
             </Table.Tr>

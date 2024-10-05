@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use budgeting_backend::{
     db,
     models::{
-        CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest, CreateUserRequest,
-        Transaction,
+        Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
+        CreateUserRequest, Transaction,
     },
 };
 use chrono::NaiveDate;
@@ -18,11 +18,13 @@ use uuid::Uuid;
 static USER_ID: OnceLock<Uuid> = OnceLock::new();
 static BANK_ACCOUNT_ID: OnceLock<Uuid> = OnceLock::new();
 static PAYEE_ID: OnceLock<Uuid> = OnceLock::new();
+static BUDGET_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
     let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
     let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
     let payee_id = *PAYEE_ID.get_or_init(|| Uuid::new_v4());
+    let budget_id = *BUDGET_ID.get_or_init(|| Uuid::new_v4());
 
     db::users::create_user(
         db_pool,
@@ -47,6 +49,13 @@ async fn test_init(db_pool: &MySqlPool) {
     )
     .await
     .unwrap();
+
+    db::budgets::create_budget(
+        db_pool,
+        Budget::new(budget_id, "Budget".into(), None, user_id),
+    )
+    .await
+    .unwrap();
 }
 
 #[sqlx::test]
@@ -56,6 +65,7 @@ pub async fn create_transaction(db_pool: MySqlPool) {
 
     let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
     let payee_id = *PAYEE_ID.unwrap();
+    let budget_id = *BUDGET_ID.unwrap();
 
     let response = test_server
         .post(&format!(
@@ -66,6 +76,7 @@ pub async fn create_transaction(db_pool: MySqlPool) {
             payee_id,
             Decimal::from_f32(10.15).unwrap(),
             NaiveDate::from_ymd_opt(2024, 9, 25).unwrap(),
+            budget_id,
         ))
         .await;
 
@@ -82,6 +93,7 @@ pub async fn create_transaction(db_pool: MySqlPool) {
         NaiveDate::from_ymd_opt(2024, 9, 25).unwrap(),
         Decimal::from_f32(10.15).unwrap(),
         bank_account_id,
+        budget_id
     )]
     .into_boxed_slice();
 
@@ -95,6 +107,7 @@ pub async fn get_transactions(db_pool: MySqlPool) {
 
     let payee_id = *PAYEE_ID.unwrap();
     let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
+    let budget_id = *BUDGET_ID.unwrap();
 
     let transaction = Transaction::new(
         Uuid::new_v4(),
@@ -102,18 +115,21 @@ pub async fn get_transactions(db_pool: MySqlPool) {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         Decimal::from_f32(1.3).unwrap(),
         bank_account_id,
+        budget_id
     );
     db::transactions::create_transaction(
         &db_pool,
         transaction.id,
         bank_account_id,
-        CreateTransactionRequest::new(transaction.payee_id, transaction.amount, transaction.date),
+        CreateTransactionRequest::new(transaction.payee_id, transaction.amount, transaction.date, budget_id),
     )
     .await
     .unwrap();
 
     let response = test_server
-        .get(&format!("/api/bank-accounts/{bank_account_id}/transactions"))
+        .get(&format!(
+            "/api/bank-accounts/{bank_account_id}/transactions"
+        ))
         .await;
 
     response.assert_ok();

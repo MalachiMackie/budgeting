@@ -7,31 +7,40 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useState } from "react";
-import { CreateTransactionRequest, Payee } from "../api/budgetingApi";
+import { Budget, CreateTransactionRequest, Payee } from "../api/budgetingApi";
 import { formatDate } from "../utils/formatDate";
+import { CreateBudgetModal } from "./CreateBudgetModal";
 import { CreatePayeeModal } from "./CreatePayeeModal";
 import "./NewTransactionRow.css";
 
 export function NewTransactionRow({
   payees,
+  budgets,
   save,
 }: {
   payees: Payee[];
+  budgets: Budget[];
   save: (x: CreateTransactionRequest) => Promise<string>;
 }): JSX.Element {
   // todo: show loading
   const [date, setDate] = useState(new Date());
-  const [amount, setAmount] = useState<number | undefined>(undefined);
-  const [payeeId, setPayeeId] = useState<string | undefined>(undefined);
+  const [amount, setAmount] = useState<number>(0);
+  const [payeeId, setPayeeId] = useState<string | null>(null);
+  const [budgetId, setBudgetId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showCreatePayee, setShowCreatePayee] = useState(false);
+  const [showCreateBudget, setShowCreateBudget] = useState(false);
 
   const handleSaveClick = async () => {
     if (!payeeId) {
       alert("Cannot save transaction without a payee");
       return;
     }
-    if (typeof amount === "undefined") {
+    if (!budgetId) {
+      alert("Cannot save transaction without a budget");
+      return;
+    }
+    if (amount === null) {
       alert("Cannot save transaction without a transaction amount");
       return;
     }
@@ -41,10 +50,11 @@ export function NewTransactionRow({
         date: formatDate(date),
         payee_id: payeeId,
         amount: amount,
+        budget_id: budgetId,
       });
-      setDate(new Date());
-      setAmount(undefined);
-      setPayeeId(undefined);
+      setAmount(0);
+      setPayeeId(null);
+      setBudgetId(null);
     } catch {
       // handle error
     } finally {
@@ -65,12 +75,35 @@ export function NewTransactionRow({
     setPayeeId(x);
   };
 
+  const handleBudgetChange = (budgetId: string | null | undefined) => {
+    if (!budgetId) {
+      return;
+    }
+
+    if (budgetId === "create-new") {
+      setShowCreateBudget(true);
+      return;
+    }
+
+    setBudgetId(budgetId);
+  };
+
   return (
     <>
       {saving && <LoadingOverlay />}
       <Table.Tr className="newTransactionRow">
         <Table.Td>
           <DatePickerInput value={date} onChange={(x) => x && setDate(x)} />
+        </Table.Td>
+        <Table.Td>
+          <Select
+            data={[
+              { value: "create-new", label: "+ Create Budget" },
+              ...budgets.map((x) => ({ value: x.id, label: x.name })),
+            ]}
+            value={budgetId}
+            onChange={handleBudgetChange}
+          />
         </Table.Td>
         <Table.Td>
           <NumberInput
@@ -100,6 +133,15 @@ export function NewTransactionRow({
           onSuccess={(payee) => {
             setPayeeId(payee.id);
             setShowCreatePayee(false);
+          }}
+        />
+      )}
+      {showCreateBudget && (
+        <CreateBudgetModal
+          onCancel={() => setShowCreateBudget(false)}
+          onSuccess={(newBudgetId) => {
+            setBudgetId(newBudgetId);
+            setShowCreateBudget(false);
           }}
         />
       )}

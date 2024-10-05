@@ -8,8 +8,7 @@ use std::sync::OnceLock;
 use budgeting_backend::{
     db,
     models::{
-        BankAccount, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
-        CreateUserRequest
+        BankAccount, Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest, CreateUserRequest
     },
 };
 use common::*;
@@ -19,13 +18,16 @@ use uuid::Uuid;
 
 static USER_ID: OnceLock<Uuid> = OnceLock::new();
 static BANK_ACCOUNT_ID: OnceLock<Uuid> = OnceLock::new();
+static BUDGET_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = USER_ID.get_or_init(|| Uuid::new_v4());
-    let bank_account_id = BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
+    let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
+    let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
+    let budget_id = *BUDGET_ID.get_or_init(|| Uuid::new_v4());
+
     db::users::create_user(
         db_pool,
-        *user_id,
+        user_id,
         CreateUserRequest::new("name".to_owned(), "someone@email.com".to_owned()),
     )
     .await
@@ -33,15 +35,20 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::bank_accounts::create_bank_account(
         db_pool,
-        *bank_account_id,
+        bank_account_id,
         CreateBankAccountRequest::new(
             "My Bank Account".to_owned(),
             Decimal::from_f32(13.63).unwrap(),
-            *user_id,
+            user_id,
         ),
     )
     .await
     .unwrap();
+    
+    db::budgets::create_budget(
+        db_pool,
+        Budget::new(budget_id, "Budget".into(), None, user_id))
+        .await.unwrap();
 }
 
 #[sqlx::test]
@@ -115,6 +122,7 @@ pub async fn get_bank_account_with_transactions(db_pool: MySqlPool) {
     let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
     let user_id = *USER_ID.unwrap();
     let payee_id = Uuid::new_v4();
+    let budget_id = *BUDGET_ID.unwrap();
 
     db::payees::create_payee(
         &db_pool,
@@ -132,6 +140,7 @@ pub async fn get_bank_account_with_transactions(db_pool: MySqlPool) {
             payee_id,
             Decimal::from_f32(12.34).unwrap(),
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            budget_id
         ),
     )
     .await

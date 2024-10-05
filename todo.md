@@ -1,0 +1,10 @@
+- Edit historical transactions
+- Delete budget
+- Save pay period
+- Budget assignment
+- Better transaction flow
+    - Tab
+    - Select searching
+    - clearer amount outflow/inflow
+- user signin
+- Archive budget

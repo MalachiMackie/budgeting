@@ -16,7 +16,7 @@ import {
   CreateBudgetRequest,
   CreateBudgetTargetRequest,
   SchedulePeriod,
-  SchedulePeriodType,
+  SchedulePeriodType
 } from "../api/budgetingApi";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
@@ -25,7 +25,7 @@ import { formatDate } from "../utils/formatDate";
 
 type CreateBudgetModalProps = {
   onCancel: () => void;
-  onSuccess: () => void;
+  onSuccess: (newBudgetId: string) => void;
 };
 
 export function CreateBudgetModal({
@@ -76,11 +76,11 @@ export function CreateBudgetModal({
   const createBudget = useMutation({
     mutationKey: queryKeys.budgets.create,
     mutationFn: () => api.createBudget(request),
-    onSuccess: async () => {
+    onSuccess: async (budgetId) => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.budgets.fetch,
       });
-      onSuccess();
+      onSuccess(budgetId);
     },
   });
 

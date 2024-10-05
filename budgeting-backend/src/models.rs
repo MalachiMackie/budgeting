@@ -30,6 +30,7 @@ pub struct Transaction {
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub bank_account_id: Uuid,
+    pub budget_id: Uuid,
 }
 
 #[derive(Deserialize, Serialize, Constructor, ToSchema)]
@@ -39,6 +40,7 @@ pub struct CreateTransactionRequest {
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub date: NaiveDate,
+    pub budget_id: Uuid,
 }
 
 #[derive(Deserialize, Serialize, Constructor, ToSchema, Debug, PartialEq)]
@@ -99,7 +101,7 @@ pub enum CreateBudgetTargetRequest {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize, Constructor)]
 pub struct Budget {
     pub id: Uuid,
     pub name: String,

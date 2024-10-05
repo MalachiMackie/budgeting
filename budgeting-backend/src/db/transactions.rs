@@ -13,6 +13,7 @@ struct TransactionModel {
     date: NaiveDate,
     amount: Decimal,
     bank_account_id: String,
+    budget_id: String
 }
 
 impl TryFrom<TransactionModel> for Transaction {
@@ -25,19 +26,21 @@ impl TryFrom<TransactionModel> for Transaction {
             payee_id: value.payee_id.parse()?,
             amount: value.amount,
             bank_account_id: value.bank_account_id.parse()?,
+            budget_id: value.budget_id.parse()?,
         })
     }
 }
 
 pub async fn create_transaction(db_pool: &MySqlPool, id: Uuid, bank_account_id: Uuid, request: CreateTransactionRequest) -> Result<(), DbError> {
     sqlx::query!(r"
-            INSERT INTO Transactions (id, payee_id, date, amount, bank_account_id)
-            VALUE (?, ?, ?, ?, ?)",
+            INSERT INTO Transactions (id, payee_id, date, amount, bank_account_id, budget_id)
+            VALUE (?, ?, ?, ?, ?, ?)",
             id.as_simple(),
             request.payee_id.as_simple(),
             request.date,
             request.amount,
-            bank_account_id.as_simple())
+            bank_account_id.as_simple(),
+            request.budget_id.as_simple())
         .execute(db_pool)
         .await?;
 
@@ -45,7 +48,9 @@ pub async fn create_transaction(db_pool: &MySqlPool, id: Uuid, bank_account_id: 
 }
 
 pub async fn get_transactions(db_pool: &MySqlPool, bank_account_id: Uuid) -> Result<Box<[Transaction]>, DbError> {
-    let transactions = sqlx::query_as!(TransactionModel, "SELECT id, amount, date, payee_id, bank_account_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
+    let transactions = sqlx::query_as!(
+        TransactionModel,
+        "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
         .fetch_all(db_pool)
         .await?
         .into_iter()
