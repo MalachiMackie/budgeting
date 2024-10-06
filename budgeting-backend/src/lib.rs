@@ -42,7 +42,7 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
             "/api/bank-accounts/:bankAccountId/transactions",
             get(get_transactions).post(create_transaction),
         )
-        .route("/api/bank-accounts/:bankAccountId/transactions/:transactionId",
+        .route("/api/transactions/:transactionId",
             put(update_transaction))
         .route("/api/budgets", get(get_budgets).post(create_budget))
         .with_state(db_pool)
@@ -73,7 +73,7 @@ fn build_cors() -> CorsLayer {
     let allow_origin = std::env::var("CORS_ALLOW_ORIGIN").unwrap_or("localhost".to_owned());
 
     CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::PUT])
         .allow_headers([ACCEPT, CONTENT_TYPE])
         .allow_origin(allow_origin.parse::<HeaderValue>().unwrap())
 }

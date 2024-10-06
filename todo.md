@@ -1,7 +1,8 @@
-- Edit historical transactions (BE Done)
+- Investigate Tanstack Router - better integration with tanstack query
 - Delete budget
 - Save pay period
 - Budget assignment
+- fix nav scrolling
 - Better transaction flow
     - Tab
     - Select searching

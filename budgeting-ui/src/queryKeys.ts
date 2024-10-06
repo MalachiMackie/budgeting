@@ -16,6 +16,7 @@ export const queryKeys = {
   },
   transactions: {
     fetch: (bankAccountId: string) => ["transactions", bankAccountId],
+    edit: (transactionId: string) => ["edit-transaction", transactionId],
     create: ["create-transaction"],
   },
 } satisfies ContainsQuery;

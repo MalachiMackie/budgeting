@@ -80,7 +80,10 @@ pub async fn create_transaction(
     match payee_result {
         Ok(_) => (),
         Err(DbError::NotFound) => {
-            return Err(AppError::NotFound(anyhow::anyhow!("Payee not found with id {}", request.payee_id)))
+            return Err(AppError::NotFound(anyhow::anyhow!(
+                "Payee not found with id {}",
+                request.payee_id
+            )))
         }
         Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction"))),
     }
@@ -94,7 +97,7 @@ pub async fn create_transaction(
 
 #[utoipa::path(
     put,
-    path = "/api/bank-accounts/{bankAccountId}/transactions/{transactionId}",
+    path = "/api/transactions/{transactionId}",
     responses(
         (status = OK, description = "Success",)
     ),
@@ -106,20 +109,26 @@ pub async fn create_transaction(
     tag = API_TAG)]
 pub async fn update_transaction(
     State(db_pool): State<MySqlPool>,
-    Path((_bank_account_id, transaction_id)): Path<(Uuid, Uuid)>,
+    Path(transaction_id): Path<Uuid>,
     Json(request): Json<UpdateTransactionRequest>,
 ) -> Result<(), AppError> {
-    let transaction = db::transactions::get_transaction(&db_pool, transaction_id).await
+    let transaction = db::transactions::get_transaction(&db_pool, transaction_id)
+        .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
-    
-    db::transactions::update_transaction(&db_pool, Transaction::new(
-        transaction.id,
-        request.payee_id,
-        request.date,
-        request.amount,
-        transaction.bank_account_id,
-        request.budget_id)).await
-        .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
-    
+
+    db::transactions::update_transaction(
+        &db_pool,
+        Transaction::new(
+            transaction.id,
+            request.payee_id,
+            request.date,
+            request.amount,
+            transaction.bank_account_id,
+            request.budget_id,
+        ),
+    )
+    .await
+    .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
+
     Ok(())
 }

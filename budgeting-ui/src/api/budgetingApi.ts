@@ -22,6 +22,16 @@ export const BudgetingApi = {
 
     return json as string;
   },
+  async updateTransaction(
+    transactionId: string,
+    request: UpdateTransactionRequest
+  ): Promise<void> {
+    await fetch(`http://localhost:3000/api/transactions/${transactionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  },
   async getPayees(userId: string): Promise<Payee[]> {
     let result = await fetch(
       `http://localhost:3000/api/payees?user_id=${userId}`
@@ -111,7 +121,14 @@ export type CreateTransactionRequest = {
   payee_id: string;
   amount: number;
   date: string;
-  budget_id: string
+  budget_id: string;
+};
+
+export type UpdateTransactionRequest = {
+  payee_id: string;
+  amount: number;
+  date: string;
+  budget_id: string;
 };
 
 export type User = {

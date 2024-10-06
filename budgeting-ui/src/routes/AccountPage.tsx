@@ -4,7 +4,7 @@ import { Params, useLoaderData } from "react-router-dom";
 import { BankAccount, BudgetingApi } from "../api/budgetingApi";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
-import TransactionList from "../views/transactionList";
+import { TransactionList } from "../views/TransactionList";
 
 export function AccountPage(): JSX.Element {
   const bankAccount = useLoaderData() as BankAccount;
@@ -13,6 +13,10 @@ export function AccountPage(): JSX.Element {
   return (
     <>
       <Title>{bankAccount.name} - Transactions</Title>
+      <span>
+        Balance: {Math.sign(bankAccount.balance) === -1 && "-"}$
+        {Math.abs(bankAccount.balance).toFixed(2)}
+      </span>
       <TransactionList bankAccountId={bankAccount.id} userId={userId} />
     </>
   );

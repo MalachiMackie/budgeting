@@ -1,11 +1,13 @@
 import { Table } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { CreateTransactionRequest, Transaction } from "../api/budgetingApi";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 import { NewTransactionRow } from "./NewTransactionRow";
+import { TransactionRow } from "./TransactionRow";
 
-export default function TransactionList({
+export function TransactionList({
   bankAccountId,
   userId,
 }: {
@@ -14,6 +16,9 @@ export default function TransactionList({
 }): JSX.Element {
   const budgetingApi = useBudgetingApi();
   const queryClient = useQueryClient();
+
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [editingRow, setEditingRow] = useState<string | null>(null);
 
   const { data: payees, isLoading: payeesLoading } = useQuery({
     queryKey: queryKeys.payees.fetch(userId),
@@ -54,13 +59,6 @@ export default function TransactionList({
   let payeesMap = new Map(payees.map((x) => [x.id, x]));
   let budgetsMap = new Map(budgets.map((x) => [x.id, x]));
 
-  const headers = [
-    { key: "date", header: "Date" },
-    { key: "budget", header: "Budget" },
-    { key: "amount", header: "Amount" },
-    { key: "payee", header: "Payee" },
-  ];
-
   const compareTransactions = (a: Transaction, b: Transaction): number => {
     // todo: within the same day, compare by amount
 
@@ -73,9 +71,11 @@ export default function TransactionList({
       <Table>
         <Table.Thead>
           <Table.Tr>
-            {headers.map((x) => (
-              <Table.Th key={x.key}>{x.header}</Table.Th>
-            ))}
+            <Table.Th></Table.Th>
+            <Table.Th>Date</Table.Th>
+            <Table.Th>Budget</Table.Th>
+            <Table.Th>Amount</Table.Th>
+            <Table.Th>Payee</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -85,12 +85,37 @@ export default function TransactionList({
             budgets={budgets}
           />
           {[...transactions].sort(compareTransactions).map((x) => (
-            <Table.Tr key={x.id}>
-              <Table.Td>{new Date(x.date).toDateString()}</Table.Td>
-              <Table.Td>{budgetsMap.get(x.budget_id)?.name}</Table.Td>
-              <Table.Td>${x.amount.toFixed(2)}</Table.Td>
-              <Table.Td>{payeesMap.get(x.payee_id)?.name}</Table.Td>
-            </Table.Tr>
+            <TransactionRow
+              selected={selectedRows.has(x.id)}
+              onRowSelected={() => {
+                setEditingRow(null);
+                setSelectedRows(new Set([x.id]));
+              }}
+              onCheckboxSelectedChange={(selected) => {
+                setEditingRow(null);
+                setSelectedRows((prev) => {
+                  !selected && prev.delete(x.id);
+                  selected && prev.add(x.id);
+                  return new Set(prev);
+                });
+              }}
+              isEdit={editingRow === x.id}
+              onEditChange={(isEditing) => {
+                if (isEditing && selectedRows.has(x.id)) {
+                  setEditingRow(x.id);
+                  // if editing, ensure only this row is selected
+                  setSelectedRows(new Set([x.id]));
+                }
+                if (!isEditing && editingRow === x.id) {
+                  setEditingRow(null);
+                }
+              }}
+              key={x.id}
+              transaction={x}
+              payeesMap={payeesMap}
+              budgetsMap={budgetsMap}
+              bankAccountId={bankAccountId}
+            />
           ))}
           {transactions.length === 0 && (
             <Table.Tr>

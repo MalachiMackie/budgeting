@@ -92,6 +92,7 @@ export function NewTransactionRow({
     <>
       {saving && <LoadingOverlay />}
       <Table.Tr className="newTransactionRow">
+        <Table.Td></Table.Td>
         <Table.Td>
           <DatePickerInput value={date} onChange={(x) => x && setDate(x)} />
         </Table.Td>
@@ -123,6 +124,7 @@ export function NewTransactionRow({
         </Table.Td>
       </Table.Tr>
       <Table.Tr>
+        <Table.Td></Table.Td>
         <Table.Td colSpan={3}>
           <Button onClick={handleSaveClick}>Save</Button>
         </Table.Td>
