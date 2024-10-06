@@ -4,19 +4,28 @@ import {
   IconPlus,
   IconUsersGroup,
 } from "@tabler/icons-react";
-import { QueryClient } from "@tanstack/react-query";
+import {
+  QueryClient,
+  queryOptions,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useState } from "react";
-import { Outlet, useLoaderData, useRevalidator } from "react-router-dom";
-import { BankAccount, BudgetingApi } from "../api/budgetingApi";
+import { Outlet } from "react-router-dom";
+import { BudgetingApi } from "../api/budgetingApi";
+import { useBudgetingApi } from "../App";
 import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
+import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { CreateBankAccountModal } from "../views/CreateBankAccountModal";
 
 export function Root(): JSX.Element {
-  const bankAccounts = useLoaderData() as BankAccount[];
-  const [showCreateBankAccount, setShowCreateBankAccount] = useState(false);
+  const api = useBudgetingApi();
+  const userId = useUserId();
+  const { data: bankAccounts } = useSuspenseQuery(
+    createQueryOptions(api, userId)
+  );
 
-  const { revalidate } = useRevalidator();
+  const [showCreateBankAccount, setShowCreateBankAccount] = useState(false);
 
   return (
     <div style={{ display: "flex" }}>
@@ -82,7 +91,6 @@ export function Root(): JSX.Element {
             onClose={() => setShowCreateBankAccount(false)}
             onSuccess={() => {
               setShowCreateBankAccount(false);
-              revalidate();
             }}
           />
         )}
@@ -91,15 +99,20 @@ export function Root(): JSX.Element {
   );
 }
 
+function createQueryOptions(api: BudgetingApi, userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.bankAccounts.fetch,
+    queryFn: () => api.getBankAccounts(userId),
+  });
+}
+
 export function createRootLoader(
   api: BudgetingApi,
   queryClient: QueryClient,
   userId: string
 ) {
-  return () => {
-    return queryClient.fetchQuery({
-      queryKey: queryKeys.bankAccounts.fetch,
-      queryFn: () => api.getBankAccounts(userId),
-    });
+  return async () => {
+    await queryClient.ensureQueryData(createQueryOptions(api, userId));
+    return null;
   };
 }

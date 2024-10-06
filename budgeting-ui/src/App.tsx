@@ -7,7 +7,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Params,
+  RouteObject,
+  RouterProvider,
+  useRouteError,
+} from "react-router-dom";
 import { BudgetingApi } from "./api/budgetingApi";
 import { UserIdContext, useUserId } from "./hooks/useUserId";
 import { AccountPage, createAccountLoader } from "./routes/AccountPage";
@@ -66,7 +72,7 @@ export function BudgetingRouterWrapper() {
       path: "/",
       element: <Root />,
       loader: createRootLoader(api, queryClient, userId),
-      errorElement: <>Something went wrong 😱</>,
+      errorElement: <ErrorComponent />,
       children: [
         {
           path: "/accounts/:accountId",
@@ -85,9 +91,33 @@ export function BudgetingRouterWrapper() {
         },
       ],
     },
-  ]);
+  ] satisfies MaybeHasLoader[]);
 
   return <RouterProvider router={router} />;
 }
 
+// RouteObject allows the loader to return anything, but at runtime,
+// it validates that it must return something or null.
+// so instead, make a type that is what router expects
+type Loader =
+  | (() => Promise<{} | null>)
+  | ((args: { params: Params }) => Promise<{} | null>)
+  | undefined;
+
+type MaybeHasLoader = RouteObject & {
+  loader?: Loader;
+  children?: MaybeHasLoader[];
+};
+
 export default App;
+
+function ErrorComponent(): JSX.Element {
+  const error = useRouteError();
+
+  return (
+    <>
+      <span>Something went wrong 😱</span>
+      <code>{JSON.stringify(error)}</code>
+    </>
+  );
+}

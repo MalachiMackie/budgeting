@@ -1,15 +1,21 @@
 import { Button, Title } from "@mantine/core";
-import { QueryClient } from "@tanstack/react-query";
+import {
+  QueryClient,
+  queryOptions,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useState } from "react";
-import { useLoaderData, useRevalidator } from "react-router-dom";
-import { Budget, BudgetingApi } from "../api/budgetingApi";
+import { BudgetingApi } from "../api/budgetingApi";
+import { useBudgetingApi } from "../App";
+import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { BudgetList } from "../views/BudgetList";
 import { CreateBudgetModal } from "../views/CreateBudgetModal";
 
 export function BudgetsPage(): JSX.Element {
-  const budgets = useLoaderData() as Budget[];
-  const { revalidate } = useRevalidator();
+  const api = useBudgetingApi();
+  const userId = useUserId();
+  const { data: budgets } = useSuspenseQuery(createQueryOptions(api, userId));
 
   const [showCreateBudget, setShowCreateBudget] = useState(false);
 
@@ -25,7 +31,6 @@ export function BudgetsPage(): JSX.Element {
           onCancel={() => setShowCreateBudget(false)}
           onSuccess={() => {
             setShowCreateBudget(false);
-            revalidate();
           }}
         />
       )}
@@ -33,15 +38,20 @@ export function BudgetsPage(): JSX.Element {
   );
 }
 
+function createQueryOptions(api: BudgetingApi, userId: string) {
+  return queryOptions({
+    queryKey: queryKeys.budgets.fetch,
+    queryFn: () => api.getBudgets(userId),
+  });
+}
+
 export function createBudgetsLoader(
   api: BudgetingApi,
   queryClient: QueryClient,
   userId: string
 ) {
-  return () => {
-    return queryClient.fetchQuery({
-      queryKey: queryKeys.budgets.fetch,
-      queryFn: () => api.getBudgets(userId),
-    });
+  return async () => {
+    await queryClient.ensureQueryData(createQueryOptions(api, userId));
+    return null;
   };
 }

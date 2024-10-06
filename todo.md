@@ -1,5 +1,4 @@
-- Investigate Tanstack Router - better integration with tanstack query
-- Delete budget
+- Delete items
 - Save pay period
 - Budget assignment
 - fix nav scrolling

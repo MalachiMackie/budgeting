@@ -1,14 +1,24 @@
 import { Title } from "@mantine/core";
-import { QueryClient } from "@tanstack/react-query";
-import { Params, useLoaderData } from "react-router-dom";
-import { BankAccount, BudgetingApi } from "../api/budgetingApi";
+import {
+  QueryClient,
+  queryOptions,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { Params, useParams } from "react-router-dom";
+import { BudgetingApi } from "../api/budgetingApi";
+import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { TransactionList } from "../views/TransactionList";
 
 export function AccountPage(): JSX.Element {
-  const bankAccount = useLoaderData() as BankAccount;
   const userId = useUserId();
+  const api = useBudgetingApi();
+  const params = useParams();
+
+  const { data: bankAccount } = useSuspenseQuery(
+    createQueryOptions(api, params.accountId!, userId)
+  );
 
   return (
     <>
@@ -22,16 +32,27 @@ export function AccountPage(): JSX.Element {
   );
 }
 
+function createQueryOptions(
+  api: BudgetingApi,
+  accountId: string,
+  userId: string
+) {
+  return queryOptions({
+    queryKey: queryKeys.bankAccounts.fetchSingle(accountId),
+    queryFn: () => api.getBankAccount(accountId, userId),
+  });
+}
+
 export function createAccountLoader(
   api: BudgetingApi,
   queryClient: QueryClient,
   userId: string
 ) {
-  return ({ params }: { params: Params }) => {
+  return async ({ params }: { params: Params }) => {
     const accountId = params.accountId!;
-    return queryClient.fetchQuery({
-      queryKey: queryKeys.bankAccounts.fetchSingle(accountId),
-      queryFn: () => api.getBankAccount(accountId, userId),
-    });
+    await queryClient.ensureQueryData(
+      createQueryOptions(api, accountId, userId)
+    );
+    return null;
   };
 }
