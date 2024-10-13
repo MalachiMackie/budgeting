@@ -26,8 +26,9 @@ impl DbError {
 
 impl From<sqlx::Error> for DbError {
     fn from(value: sqlx::Error) -> Self {
-        DbError::Unknown {
-            error: value.into(),
+        match value {
+            sqlx::Error::RowNotFound => Self::NotFound,
+            err => DbError::Unknown { error: err.into() },
         }
     }
 }

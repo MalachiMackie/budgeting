@@ -9,11 +9,21 @@ use sqlx::MySqlPool;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, models::{BankAccount, CreateBankAccountRequest}, AppError};
+use crate::{
+    db,
+    models::{BankAccount, CreateBankAccountRequest, UpdateBankAccountRequest},
+    AppError,
+};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_bank_accounts, create_bank_account, get_bank_account),
+    paths(
+        get_bank_accounts,
+        get_bank_account,
+        create_bank_account,
+        delete_bank_account,
+        update_bank_account
+    ),
     components(schemas(BankAccount, CreateBankAccountRequest))
 )]
 pub struct BankAccountApi;
@@ -82,6 +92,16 @@ pub struct GetBankAccountQuery {
     user_id: Uuid,
 }
 
+#[derive(Deserialize)]
+pub struct DeleteBankAccountQuery {
+    user_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateBankAccountQuery {
+    user_id: Uuid,
+}
+
 #[utoipa::path(
     get,
     path = "/api/bank-accounts/{accountId}",
@@ -105,11 +125,68 @@ pub async fn get_bank_account(
         )));
     }
     if query.user_id.is_nil() {
-        return Err(AppError::BadRequest(anyhow!("user_id must be set")))
+        return Err(AppError::BadRequest(anyhow!("user_id must be set")));
     }
 
     db::bank_accounts::get_bank_account(&db_pool, account_id, query.user_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get bank_account with id {account_id}")))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/bank-accounts/:accountId",
+    responses(
+        (status = OK, description = "Success",)
+    ),
+    params(
+        ("user_id" = Uuid, Query,),
+        ("accountId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
+pub async fn delete_bank_account(
+    State(db_pool): State<MySqlPool>,
+    Path(account_id): Path<Uuid>,
+    Query(DeleteBankAccountQuery { user_id }): Query<DeleteBankAccountQuery>,
+) -> Result<(), AppError> {
+    db::bank_accounts::get_bank_account(&db_pool, account_id, user_id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to find bank account")))?;
+
+    db::bank_accounts::delete_bank_account(&db_pool, account_id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to delete bank account")))?;
+
+    Ok(())
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/bank-accounts/:accountId",
+    responses(
+        (status = OK, description = "Success",)
+    ),
+    params(
+        ("user_id" = Uuid, Query,),
+        ("accountId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
+pub async fn update_bank_account(
+    State(db_pool): State<MySqlPool>,
+    Path(account_id): Path<Uuid>,
+    Query(UpdateBankAccountQuery { user_id }): Query<UpdateBankAccountQuery>,
+    Json(request): Json<UpdateBankAccountRequest>,
+) -> Result<(), AppError> {
+    _ = db::bank_accounts::get_bank_account(&db_pool, account_id, user_id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to get bank account")))?;
+
+    db::bank_accounts::update_bank_account(&db_pool, account_id, &request.name)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update bank account")))?;
+
+    Ok(())
 }

@@ -107,6 +107,17 @@ pub async fn get_transaction(
         .map_err(|e| DbError::MappingError { error: e })
 }
 
+pub async fn delete_transaction(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<(), DbError> {
+    sqlx::query!(
+        "DELETE FROM Transactions WHERE id = ?",
+        transaction_id.as_simple()
+    )
+    .execute(db_pool)
+    .await?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::OnceLock;
@@ -281,5 +292,37 @@ mod tests {
 
         assert_eq!(found_transaction, updated);
         assert!(found_amount.approximately_eq(updated_amount, dec!(0.001)));
+    }
+
+    #[sqlx::test]
+    pub async fn delete_test(db_pool: MySqlPool) {
+        test_init(&db_pool).await;
+
+        let transaction_id = Uuid::new_v4();
+        let bank_account_id = *BANK_ACCOUNT_ID.get().unwrap();
+        let payee_id = *PAYEE_ID.get().unwrap();
+        let budget_id = *BUDGET_ID.get().unwrap();
+
+        create_transaction(
+            &db_pool,
+            transaction_id,
+            bank_account_id,
+            CreateTransactionRequest::new(
+                payee_id,
+                Decimal::from_f32(1.2).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+                budget_id,
+            ),
+        )
+        .await
+        .unwrap();
+
+        let result = delete_transaction(&db_pool, transaction_id).await;
+
+        assert!(result.is_ok());
+
+        let find_result = get_transaction(&db_pool, transaction_id).await;
+
+        assert!(matches!(find_result, Err(DbError::NotFound)))
     }
 }

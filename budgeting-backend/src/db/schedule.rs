@@ -154,6 +154,35 @@ WHERE id IN ({})",
         .map_err(|e| DbError::MappingError { error: e })
 }
 
+pub async fn delete_schedule(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbError> {
+    sqlx::query!("DELETE FROM Schedules WHERE id = ?", id.as_simple())
+        .execute(db_pool)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn update_schedule(db_pool: &MySqlPool, schedule: Schedule) -> Result<(), DbError> {
+    let db_model: ScheduleDbModel = schedule.into();
+    sqlx::query!(
+        "UPDATE Schedules
+    SET period_type = ?,
+    period_starting_on = ?,
+    custom_period_type = ?,
+    custom_period_every_count = ?
+    WHERE Id = ?",
+        db_model.period_type,
+        db_model.period_starting_on,
+        db_model.custom_period_type,
+        db_model.custom_period_every_count,
+        db_model.id
+    )
+    .execute(db_pool)
+    .await?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,6 +371,8 @@ mod tests {
     }
 
     mod db_tests {
+        use crate::models::SchedulePeriodType;
+
         use super::*;
 
         #[sqlx::test]
@@ -380,6 +411,60 @@ FROM Schedules"
                     custom_period_every_count: None
                 }]
             )
+        }
+
+        #[sqlx::test]
+        pub async fn delete_schedule_test(db_pool: MySqlPool) {
+            let id = Uuid::new_v4();
+            create_schedule(
+                &db_pool,
+                Schedule {
+                    id: id,
+                    period: SchedulePeriod::Weekly {
+                        starting_on: NaiveDate::from_ymd_opt(2024, 9, 27).unwrap(),
+                    },
+                },
+            )
+            .await
+            .unwrap();
+
+            let result = delete_schedule(&db_pool, id).await;
+            assert!(result.is_ok());
+
+            let find_result = get_schedule(&db_pool, id).await;
+
+            assert!(matches!(find_result, Err(DbError::NotFound)));
+        }
+
+        #[sqlx::test]
+        pub async fn update_schedule_test(db_pool: MySqlPool) {
+            let id = Uuid::new_v4();
+            create_schedule(
+                &db_pool,
+                Schedule {
+                    id: id,
+                    period: SchedulePeriod::Weekly {
+                        starting_on: NaiveDate::from_ymd_opt(2024, 9, 27).unwrap(),
+                    },
+                },
+            )
+            .await
+            .unwrap();
+
+            let updated = Schedule {
+                id,
+                period: SchedulePeriod::Custom {
+                    period: SchedulePeriodType::Monthly,
+                    every_x_periods: 4,
+                },
+            };
+
+            let result = update_schedule(&db_pool, updated.clone()).await;
+            assert!(result.is_ok());
+
+            let find_result = get_schedule(&db_pool, id).await.unwrap();
+
+            assert_eq!(updated, find_result);
         }
     }
 }

@@ -56,7 +56,7 @@ pub struct CreateUserRequest {
     pub email: String,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, ToSchema, Constructor)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, ToSchema, Constructor, Clone)]
 pub struct BankAccount {
     pub id: Uuid,
     pub name: String,
@@ -85,6 +85,13 @@ pub struct CreateBudgetRequest {
     pub user_id: Uuid,
 }
 
+#[derive(Deserialize, Serialize, ToSchema, Constructor)]
+pub struct UpdateBudgetRequest {
+    pub name: String,
+    pub target: Option<UpdateBudgetTargetRequest>,
+    pub user_id: Uuid,
+}
+
 #[derive(Serialize, Deserialize, ToSchema)]
 pub enum CreateBudgetTargetRequest {
     OneTime {
@@ -98,6 +105,22 @@ pub enum CreateBudgetTargetRequest {
         target_amount: Decimal,
         repeating_type: RepeatingTargetType,
         schedule: CreateScheduleRequest,
+    },
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
+pub enum UpdateBudgetTargetRequest {
+    OneTime {
+        #[schema(value_type = f32)]
+        #[serde(with = "rust_decimal::serde::float")]
+        target_amount: Decimal,
+    },
+    Repeating {
+        #[schema(value_type = f32)]
+        #[serde(with = "rust_decimal::serde::float")]
+        target_amount: Decimal,
+        repeating_type: RepeatingTargetType,
+        schedule: UpdateScheduleRequest,
     },
 }
 
@@ -172,6 +195,11 @@ pub struct CreateScheduleRequest {
     pub period: SchedulePeriod,
 }
 
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
+pub struct UpdateScheduleRequest {
+    pub period: SchedulePeriod,
+}
+
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub enum SchedulePeriod {
     Weekly {
@@ -242,5 +270,10 @@ pub struct UpdateTransactionRequest {
     pub amount: Decimal,
     pub payee_id: Uuid,
     pub budget_id: Uuid,
-    pub date: NaiveDate
+    pub date: NaiveDate,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Constructor)]
+pub struct UpdateBankAccountRequest {
+    pub name: String
 }

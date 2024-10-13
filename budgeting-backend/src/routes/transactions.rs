@@ -16,7 +16,7 @@ use crate::{
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_transactions, create_transaction),
+    paths(get_transactions, create_transaction, update_transaction),
     components(schemas(Transaction, CreateTransactionRequest, UpdateTransactionRequest))
 )]
 pub struct TransactionApi;

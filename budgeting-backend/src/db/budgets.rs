@@ -53,18 +53,14 @@ impl From<Budget> for BudgetDbModel {
     }
 }
 
-impl<'a> TryFrom<(String, Option<Decimal>, Option<String>, Option<Schedule>)> for BudgetTarget {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (target_type, target_amount, repeating_target_type, maybe_schedule): (
-            String,
-            Option<Decimal>,
-            Option<String>,
-            Option<Schedule>,
-        ),
-    ) -> Result<Self, Self::Error> {
-        match target_type.as_str() {
+impl BudgetTarget {
+    fn try_new(
+        target_type: &str,
+        target_amount: Option<Decimal>,
+        repeating_target_type: Option<&str>,
+        schedule: Option<Schedule>,
+    ) -> Result<Self, anyhow::Error> {
+        match target_type {
             "OneTime" => Ok(BudgetTarget::OneTime {
                 target_amount: target_amount
                     .ok_or(anyhow!("Missing target_amount for OneTime target"))?,
@@ -77,7 +73,7 @@ impl<'a> TryFrom<(String, Option<Decimal>, Option<String>, Option<Schedule>)> fo
                         "Missing repeating_target_type for repeating target"
                     ))?
                     .parse()?,
-                schedule: maybe_schedule
+                schedule: schedule
                     .ok_or(anyhow!("Missing schedule for Repeating budget target"))?,
             }),
             other => Err(anyhow!("Unexpected target_type {other}")),
@@ -85,26 +81,21 @@ impl<'a> TryFrom<(String, Option<Decimal>, Option<String>, Option<Schedule>)> fo
     }
 }
 
-impl TryFrom<(BudgetDbModel, Option<Schedule>)> for Budget {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        (value, maybe_schedule): (BudgetDbModel, Option<Schedule>),
-    ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: value.id.parse()?,
-            name: value.name,
-            user_id: value.user_id.parse()?,
-            target: value
+impl BudgetDbModel {
+    fn try_into_budget(self, schedule: Option<Schedule>) -> Result<Budget, anyhow::Error> {
+        Ok(Budget {
+            id: self.id.parse()?,
+            name: self.name,
+            user_id: self.user_id.parse()?,
+            target: self
                 .target_type
                 .map(|target_type| {
-                    (
-                        target_type,
-                        value.target_amount,
-                        value.repeating_target_type,
-                        maybe_schedule,
+                    BudgetTarget::try_new(
+                        target_type.as_str(),
+                        self.target_amount,
+                        self.repeating_target_type.as_deref(),
+                        schedule,
                     )
-                        .try_into()
                 })
                 .transpose()?,
         })
@@ -130,6 +121,31 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
     Ok(())
 }
 
+pub async fn get_budget(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, DbError> {
+    let budget = sqlx::query_as!(
+        BudgetDbModel,
+        "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
+        FROM Budgets
+        WHERE id = ?",
+        id.as_simple()
+    ).fetch_one(db_pool)
+        .await?;
+
+    let schedule = if let Some(schedule_id) = &budget.target_schedule_id {
+        let schedule_id = schedule_id
+            .parse::<Uuid>()
+            .map_err(|e| DbError::MappingError { error: e.into() })?;
+
+        Some(schedule::get_schedule(db_pool, schedule_id).await?)
+    } else {
+        None
+    };
+
+    budget
+        .try_into_budget(schedule)
+        .map_err(|e| DbError::MappingError { error: e })
+}
+
 pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, DbError> {
     let budget_db_models = sqlx::query_as!(
         BudgetDbModel,
@@ -149,7 +165,7 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
     let schedules = if schedule_ids.is_empty() {
         Box::new([])
     } else {
-        schedule::get_schedules_by_ids(db_pool, &*schedule_ids).await?
+        schedule::get_schedules_by_ids(db_pool, &schedule_ids).await?
     };
 
     let mut schedules: HashMap<_, _> = schedules
@@ -170,16 +186,46 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
             .map_err(|e| DbError::MappingError { error: e.into() })?;
 
         // a schedule is owned by a single budget, so removing from schedules should be ok
-        let schedule = schedule_id.map(|s| schedules.remove(&s)).flatten();
+        let schedule = schedule_id.and_then(|s| schedules.remove(&s));
 
-        let budget: Budget = (db_model, schedule)
-            .try_into()
+        let budget: Budget = db_model
+            .try_into_budget(schedule)
             .map_err(|e| DbError::MappingError { error: e })?;
 
         budgets.push(budget);
     }
 
     Ok(budgets.into_boxed_slice())
+}
+
+pub async fn delete_budget(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbError> {
+
+    sqlx::query!("DELETE FROM Budgets WHERE id = ?", id.as_simple())
+        .execute(db_pool)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn update_budget(db_pool: &MySqlPool, budget: Budget) -> Result<(), DbError> {
+    let db_model: BudgetDbModel = budget.into();
+    sqlx::query!(
+        "UPDATE Budgets
+    SET name = ?,
+    target_type = ?,
+    repeating_target_type = ?,
+    target_amount = ?,
+    target_schedule_id = ?",
+        db_model.name,
+        db_model.target_type,
+        db_model.repeating_target_type,
+        db_model.target_amount,
+        db_model.target_schedule_id,
+    )
+    .execute(db_pool)
+    .await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -295,10 +341,9 @@ mod tests {
             ];
 
             for ((db_model, maybe_schedule), expected_budget) in pairs {
-                let result: Result<Budget, _> = (db_model.clone(), maybe_schedule).try_into();
+                let result = db_model.clone().try_into_budget(maybe_schedule).unwrap();
 
-                assert!(result.is_ok());
-                assert_eq!(result.unwrap(), expected_budget);
+                assert_eq!(result, expected_budget);
 
                 let mapped_db_model: BudgetDbModel = expected_budget.into();
                 assert_eq!(mapped_db_model, db_model);
@@ -307,20 +352,40 @@ mod tests {
     }
 
     mod db_tests {
+        use std::sync::OnceLock;
+
         use chrono::NaiveDate;
         use rust_decimal::prelude::FromPrimitive;
+        use rust_decimal_macros::dec;
 
         use crate::{
             db,
+            extensions::once_lock_extensions::OnceLockExt,
             models::{CreateUserRequest, RepeatingTargetType, SchedulePeriod},
         };
 
         use super::*;
 
+        static USER_ID: OnceLock<Uuid> = OnceLock::new();
+
+        async fn test_init(db_pool: &MySqlPool) {
+            let user_id = *USER_ID.init_uuid();
+
+            db::users::create_user(
+                db_pool,
+                user_id,
+                CreateUserRequest::new("name".into(), "email@email.com".into()),
+            )
+            .await
+            .unwrap();
+        }
+
         #[sqlx::test]
         pub async fn create_and_get_budget_test(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
             let id = Uuid::new_v4();
-            let user_id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
             let schedule_id = Uuid::new_v4();
             let schedule = Schedule {
                 id: schedule_id,
@@ -344,26 +409,20 @@ mod tests {
                 user_id,
             };
 
-            db::users::create_user(
-                &db_pool,
-                user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
-            )
-            .await
-            .unwrap();
+            create_budget(&db_pool, budget.clone()).await.unwrap();
 
-            let result = create_budget(&db_pool, budget.clone()).await;
-            assert!(result.is_ok());
+            let fetched = get_budgets(&db_pool, user_id).await.unwrap();
+            assert_eq!(fetched, vec![budget.clone()].into_boxed_slice());
 
-            let fetched = get_budgets(&db_pool, user_id).await;
-            assert!(fetched.is_ok());
-            assert_eq!(fetched.unwrap(), vec![budget].into_boxed_slice())
+            let fetched_single = get_budget(&db_pool, id).await.unwrap();
+            assert_eq!(fetched_single, budget);
         }
 
         #[sqlx::test]
         pub async fn get_budgets_without_schedule(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
 
             let budget = Budget {
                 id,
@@ -374,20 +433,247 @@ mod tests {
                 user_id,
             };
 
-            db::users::create_user(
-                &db_pool,
+            create_budget(&db_pool, budget.clone()).await.unwrap();
+
+            let fetched = get_budgets(&db_pool, user_id).await.unwrap();
+            assert_eq!(fetched, vec![budget].into_boxed_slice())
+        }
+
+        #[sqlx::test]
+        pub async fn update_budget_add_schedule(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+            let new_schedule_id = Uuid::new_v4();
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: None,
                 user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
-            )
-            .await
-            .unwrap();
+            };
 
-            let result = create_budget(&db_pool, budget.clone()).await;
-            assert!(result.is_ok());
+            create_budget(&db_pool, budget.clone()).await.unwrap();
 
-            let fetched = get_budgets(&db_pool, user_id).await;
-            assert!(fetched.is_ok());
-            assert_eq!(fetched.unwrap(), vec![budget].into_boxed_slice())
+            let new_schedule = Schedule {
+                id: new_schedule_id,
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 7).unwrap(),
+                },
+            };
+
+            schedule::create_schedule(&db_pool, new_schedule.clone())
+                .await
+                .unwrap();
+
+            let target = BudgetTarget::Repeating {
+                target_amount: dec!(1.2),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule: new_schedule,
+            };
+
+            let updated = Budget::new(id, "newName".into(), Some(target), user_id);
+
+            update_budget(&db_pool, updated.clone()).await.unwrap();
+
+            let fetched = get_budget(&db_pool, id).await.unwrap();
+
+            assert_eq!(fetched, updated);
+        }
+
+        #[sqlx::test]
+        pub async fn update_budget_remove_schedule_onetime_target(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+            let schedule_id = Uuid::new_v4();
+
+            let schedule = Schedule {
+                id: schedule_id,
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 7).unwrap(),
+                },
+            };
+
+            schedule::create_schedule(&db_pool, schedule.clone())
+                .await
+                .unwrap();
+
+            let target = BudgetTarget::Repeating {
+                target_amount: dec!(1.2),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule,
+            };
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: Some(target.clone()),
+                user_id,
+            };
+
+            create_budget(&db_pool, budget.clone()).await.unwrap();
+
+            let updated_target = BudgetTarget::OneTime {
+                target_amount: dec!(1.2),
+            };
+
+            let updated = Budget::new(id, "newName".into(), Some(updated_target), user_id);
+
+            update_budget(&db_pool, updated.clone()).await.unwrap();
+
+            let fetched = get_budget(&db_pool, id).await.unwrap();
+
+            assert_eq!(fetched, updated);
+        }
+
+        #[sqlx::test]
+        pub async fn update_budget_remove_schedule_no_target(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+            let schedule_id = Uuid::new_v4();
+
+            let schedule = Schedule {
+                id: schedule_id,
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 7).unwrap(),
+                },
+            };
+
+            schedule::create_schedule(&db_pool, schedule.clone())
+                .await
+                .unwrap();
+
+            let target = BudgetTarget::Repeating {
+                target_amount: dec!(1.2),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule,
+            };
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: Some(target.clone()),
+                user_id,
+            };
+
+            create_budget(&db_pool, budget.clone()).await.unwrap();
+
+            let updated = Budget::new(id, "newName".into(), None, user_id);
+
+            update_budget(&db_pool, updated.clone()).await.unwrap();
+
+            let fetched = get_budget(&db_pool, id).await.unwrap();
+
+            assert_eq!(fetched, updated);
+        }
+
+        #[sqlx::test]
+        pub async fn update_budget_no_schedule(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: None,
+                user_id,
+            };
+
+            create_budget(&db_pool, budget.clone()).await.unwrap();
+
+            let updated = Budget::new(id, "newName".into(), None, user_id);
+
+            update_budget(&db_pool, updated.clone()).await.unwrap();
+
+            let fetched = get_budget(&db_pool, id).await.unwrap();
+
+            assert_eq!(fetched, updated);
+        }
+
+        #[sqlx::test]
+        pub async fn update_budget_schedule(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+            let schedule_id = Uuid::new_v4();
+
+            let schedule = Schedule {
+                id: schedule_id,
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 7).unwrap(),
+                },
+            };
+
+            schedule::create_schedule(&db_pool, schedule.clone())
+                .await
+                .unwrap();
+
+            let target = BudgetTarget::Repeating {
+                target_amount: dec!(1.2),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule,
+            };
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: Some(target.clone()),
+                user_id,
+            };
+
+            create_budget(&db_pool, budget.clone()).await.unwrap();
+
+            let updated_schedule = Schedule {
+                id: schedule_id,
+                period: SchedulePeriod::Monthly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 13).unwrap(),
+                },
+            };
+
+            schedule::update_schedule(&db_pool, updated_schedule.clone())
+                .await
+                .unwrap();
+
+            let updated_target = BudgetTarget::Repeating {
+                target_amount: dec!(1.2),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule: updated_schedule,
+            };
+
+            let updated = Budget::new(id, "newName".into(), Some(updated_target), user_id);
+
+            update_budget(&db_pool, updated.clone()).await.unwrap();
+
+            let fetched = get_budget(&db_pool, id).await.unwrap();
+
+            assert_eq!(fetched, updated);
+        }
+
+        #[sqlx::test]
+        pub async fn delete_budget_test(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+            let id = Uuid::new_v4();
+            let user_id = *USER_ID.get().unwrap();
+
+            let budget = Budget {
+                id,
+                name: "name".into(),
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::from_f32(1.1).unwrap(),
+                }),
+                user_id,
+            };
+
+            create_budget(&db_pool, budget).await.unwrap();
+
+            delete_budget(&db_pool, id).await.unwrap();
+
+            let find_result = get_budgets(&db_pool, user_id).await.unwrap();
+
+            assert_eq!(find_result.len(), 0);
         }
     }
 }

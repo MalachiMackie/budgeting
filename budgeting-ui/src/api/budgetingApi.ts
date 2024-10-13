@@ -81,13 +81,18 @@ export const BudgetingApi = {
   },
   async createBankAccount(request: CreateBankAccountRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/bank-accounts`, {
-      method: "POSt",
+      method: "POST",
       body: JSON.stringify(request),
       headers: { "Content-Type": "application/json" },
     });
 
     let json = await result.json();
     return json as string;
+  },
+  async deleteBankAccount(bankAccountId: string, userId: string): Promise<void> {
+    await fetch(`http://localhost:3000/api/bank-accounts/${bankAccountId}?user_id=${userId}`, {
+      method: "DELETE",
+    });
   },
   async createBudget(request: CreateBudgetRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/budgets`, {

@@ -8,8 +8,7 @@ async fn main() {
 
     let connection_pool = init_db().await;
 
-    let app = new_app(connection_pool)
-        .merge(build_swagger_ui());
+    let app = new_app(connection_pool).merge(build_swagger_ui());
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

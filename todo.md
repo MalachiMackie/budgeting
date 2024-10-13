@@ -1,4 +1,8 @@
-- Delete items
+- Crud items
+    - Delete transaction - BE Done
+    - Delete budget - BE Done
+    - Update budget - BE Done
+    - Update bank account - BE Done
 - Save pay period
 - Budget assignment
 - fix nav scrolling

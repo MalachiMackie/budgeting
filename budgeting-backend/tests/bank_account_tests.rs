@@ -1,14 +1,14 @@
 mod common;
 
-use chrono::NaiveDate;
 use common::{OnceLockExt, TestResponseExt};
+use rust_decimal_macros::dec;
 
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db,
+    db::{self, DbError},
     models::{
-        BankAccount, Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest, CreateUserRequest
+        BankAccount, Budget, CreateBankAccountRequest, CreateUserRequest, UpdateBankAccountRequest,
     },
 };
 use common::*;
@@ -44,11 +44,13 @@ async fn test_init(db_pool: &MySqlPool) {
     )
     .await
     .unwrap();
-    
+
     db::budgets::create_budget(
         db_pool,
-        Budget::new(budget_id, "Budget".into(), None, user_id))
-        .await.unwrap();
+        Budget::new(budget_id, "Budget".into(), None, user_id),
+    )
+    .await
+    .unwrap();
 }
 
 #[sqlx::test]
@@ -88,63 +90,12 @@ pub async fn create_bank_account(db_pool: MySqlPool) {
 }
 
 #[sqlx::test]
-pub async fn get_bank_account_without_transactions(db_pool: MySqlPool) {
-    let test_server = integration_test_init(db_pool.clone());
-    test_init(&db_pool).await;
-
-    let bank_account_id = BANK_ACCOUNT_ID.unwrap();
-    let user_id = USER_ID.unwrap();
-
-    let response = test_server
-        .get(&format!(
-            "/api/bank-accounts/{}?user_id={}",
-            bank_account_id, user_id
-        ))
-        .await;
-
-    let expected_response = BankAccount::new(
-        *bank_account_id,
-        "My Bank Account".to_owned(),
-        Decimal::from_f32(13.63).unwrap(),
-        *user_id,
-        Decimal::from_f32(13.63).unwrap(),
-    );
-
-    response.assert_ok();
-    response.assert_json(&expected_response);
-}
-
-#[sqlx::test]
-pub async fn get_bank_account_with_transactions(db_pool: MySqlPool) {
+pub async fn get_bank_account(db_pool: MySqlPool) {
     let test_server = integration_test_init(db_pool.clone());
     test_init(&db_pool).await;
 
     let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
     let user_id = *USER_ID.unwrap();
-    let payee_id = Uuid::new_v4();
-    let budget_id = *BUDGET_ID.unwrap();
-
-    db::payees::create_payee(
-        &db_pool,
-        payee_id,
-        CreatePayeeRequest::new("payee".into(), user_id),
-    )
-    .await
-    .unwrap();
-
-    db::transactions::create_transaction(
-        &db_pool,
-        Uuid::new_v4(),
-        bank_account_id,
-        CreateTransactionRequest::new(
-            payee_id,
-            Decimal::from_f32(12.34).unwrap(),
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
-            budget_id
-        ),
-    )
-    .await
-    .unwrap();
 
     let response = test_server
         .get(&format!(
@@ -158,6 +109,65 @@ pub async fn get_bank_account_with_transactions(db_pool: MySqlPool) {
         "My Bank Account".into(),
         Decimal::from_f32(13.63).unwrap(),
         user_id,
-        Decimal::from_f32(13.63 + 12.34).unwrap(),
+        Decimal::from_f32(13.63).unwrap(),
     ));
+}
+
+#[sqlx::test]
+pub async fn update_bank_account(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let user_id = *USER_ID.unwrap();
+    let id = Uuid::new_v4();
+
+    db::bank_accounts::create_bank_account(
+        &db_pool,
+        id,
+        CreateBankAccountRequest::new("name".into(), dec!(0), user_id),
+    )
+    .await
+    .unwrap();
+
+    let response = test_server
+        .put(&format!("/api/bank-accounts/{id}?user_id={user_id}"))
+        .json(&UpdateBankAccountRequest::new("newName".into()))
+        .await;
+
+    response.assert_ok();
+
+    let get_result = db::bank_accounts::get_bank_account(&db_pool, id, user_id)
+        .await
+        .unwrap();
+
+    let expected = BankAccount::new(id, "newName".into(), dec!(0), user_id, dec!(0));
+
+    assert_eq!(get_result, expected);
+}
+
+#[sqlx::test]
+pub async fn delete_bank_account(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let user_id = *USER_ID.unwrap();
+    let id = Uuid::new_v4();
+
+    db::bank_accounts::create_bank_account(
+        &db_pool,
+        id,
+        CreateBankAccountRequest::new("name".into(), dec!(0), user_id),
+    )
+    .await
+    .unwrap();
+
+    let response = test_server
+        .delete(&format!("/api/bank-accounts/{id}?user_id={user_id}"))
+        .await;
+
+    response.assert_ok();
+
+    let get_result = db::bank_accounts::get_bank_account(&db_pool, id, user_id).await;
+
+    assert!(matches!(get_result, Err(DbError::NotFound)));
 }

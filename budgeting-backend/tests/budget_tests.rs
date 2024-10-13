@@ -1,13 +1,17 @@
 mod common;
 
+use chrono::NaiveDate;
 use common::*;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
+use rust_decimal_macros::dec;
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db,
+    db::{self, DbError},
     models::{
-        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, CreateScheduleRequest, CreateUserRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType
+        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
+        CreateScheduleRequest, CreateUserRequest, RepeatingTargetType, Schedule, SchedulePeriod,
+        SchedulePeriodType, UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
     },
 };
 use sqlx::MySqlPool;
@@ -87,24 +91,115 @@ pub async fn test_get_budgets(db_pool: MySqlPool) {
 
     let schedule = Schedule {
         id: Uuid::new_v4(),
-        period: SchedulePeriod::Custom { period: SchedulePeriodType::Fortnightly, every_x_periods: 1 }
+        period: SchedulePeriod::Custom {
+            period: SchedulePeriodType::Fortnightly,
+            every_x_periods: 1,
+        },
     };
-    db::schedule::create_schedule(&db_pool, schedule.clone()).await.unwrap();
-    
+    db::schedule::create_schedule(&db_pool, schedule.clone())
+        .await
+        .unwrap();
+
     let user_id = *USER_ID.unwrap();
-    
+
     let budget = Budget {
         id: Uuid::new_v4(),
         user_id,
         name: "name".into(),
-        target: Some(BudgetTarget::Repeating { target_amount: Decimal::from_f32(1.1).unwrap(), repeating_type: RepeatingTargetType::BuildUpTo, schedule: schedule })
+        target: Some(BudgetTarget::Repeating {
+            target_amount: Decimal::from_f32(1.1).unwrap(),
+            repeating_type: RepeatingTargetType::BuildUpTo,
+            schedule: schedule,
+        }),
     };
-    
-    db::budgets::create_budget(&db_pool, budget.clone()).await.unwrap();
-    
-    let response = test_server.get(&format!("/api/budgets?user_id={user_id}")).await;
-    
+
+    db::budgets::create_budget(&db_pool, budget.clone())
+        .await
+        .unwrap();
+
+    let response = test_server
+        .get(&format!("/api/budgets?user_id={user_id}"))
+        .await;
+
     response.assert_ok();
     response.assert_json(&vec![budget]);
 }
 
+#[sqlx::test]
+pub async fn delete_budget(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let user_id = *USER_ID.unwrap();
+    let id = Uuid::new_v4();
+
+    db::budgets::create_budget(&db_pool, Budget::new(id, "name".into(), None, user_id))
+        .await
+        .unwrap();
+
+    let response = test_server
+        .delete(&format!("/api/budgets/{id}?user_id={user_id}"))
+        .await;
+
+    response.assert_ok();
+
+    let find_response = db::budgets::get_budget(&db_pool, id).await;
+
+    assert!(matches!(dbg!(find_response), Err(DbError::NotFound)));
+}
+
+#[sqlx::test]
+pub async fn update_budget(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let user_id = *USER_ID.unwrap();
+    let id = Uuid::new_v4();
+
+    db::budgets::create_budget(&db_pool, Budget::new(id, "name".into(), None, user_id))
+        .await
+        .unwrap();
+
+    let response = test_server
+        .put(&format!("/api/budgets/{id}?user_id={user_id}"))
+        .json(&UpdateBudgetRequest::new(
+            "newName".into(),
+            Some(UpdateBudgetTargetRequest::Repeating {
+                target_amount: dec!(0),
+                repeating_type: RepeatingTargetType::BuildUpTo,
+                schedule: UpdateScheduleRequest {
+                    period: SchedulePeriod::Weekly {
+                        starting_on: NaiveDate::from_ymd_opt(2024, 10, 6).unwrap(),
+                    },
+                },
+            }),
+            user_id,
+        ))
+        .await;
+
+    response.assert_ok();
+
+    let mut find_response = db::budgets::get_budgets(&db_pool, user_id).await.unwrap()[0].clone();
+
+    if let Some(BudgetTarget::Repeating { schedule, .. }) = &mut find_response.target {
+        schedule.id = Uuid::nil();
+    }
+
+    let expected = Budget::new(
+        id,
+        "newName".into(),
+        Some(BudgetTarget::Repeating {
+            target_amount: dec!(0),
+            repeating_type: RepeatingTargetType::BuildUpTo,
+            schedule: Schedule {
+                id: Uuid::nil(),
+                period: SchedulePeriod::Weekly {
+                    starting_on: NaiveDate::from_ymd_opt(2024, 10, 6).unwrap(),
+                },
+            },
+        }),
+        user_id,
+    );
+
+    assert_eq!(find_response, expected);
+}

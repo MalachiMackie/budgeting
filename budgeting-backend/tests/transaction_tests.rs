@@ -3,7 +3,7 @@ mod common;
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db,
+    db::{self, DbError},
     models::{
         Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
         CreateUserRequest, Transaction, UpdateTransactionRequest,
@@ -193,7 +193,7 @@ pub async fn update_transaction(db_pool: MySqlPool) {
 
     let response = test_server
         .put(&format!(
-            "/api/bank-accounts/{bank_account_id}/transactions/{transaction_id}"
+            "/api/transactions/{transaction_id}"
         ))
         .json(&UpdateTransactionRequest::new(
             dec!(-1.2),
@@ -204,4 +204,48 @@ pub async fn update_transaction(db_pool: MySqlPool) {
         .await;
     
     response.assert_ok();
+}
+
+#[sqlx::test]
+pub async fn delete_transaction(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let payee_id = *PAYEE_ID.unwrap();
+    let bank_account_id = *BANK_ACCOUNT_ID.unwrap();
+    let budget_id = *BUDGET_ID.unwrap();
+    let user_id = *USER_ID.unwrap();
+
+    let transaction = Transaction::new(
+        Uuid::new_v4(),
+        payee_id,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        Decimal::from_f32(1.3).unwrap(),
+        bank_account_id,
+        budget_id,
+    );
+    db::transactions::create_transaction(
+        &db_pool,
+        transaction.id,
+        bank_account_id,
+        CreateTransactionRequest::new(
+            transaction.payee_id,
+            transaction.amount,
+            transaction.date,
+            budget_id,
+        ),
+    )
+    .await
+    .unwrap();   
+    
+    let response = test_server.delete(&format!("/api/transactions/{}?user_id={}", transaction.id, user_id))
+        .await;
+    
+    response.assert_ok();
+    
+    let find_response = db::transactions::get_transaction(
+        &db_pool,
+        transaction.id).await;
+    
+    assert!(matches!(find_response, Err(DbError::NotFound)));
 }

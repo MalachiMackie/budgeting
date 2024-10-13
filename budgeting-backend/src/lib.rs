@@ -11,12 +11,17 @@ use axum::{
     Router,
 };
 use http::header::{ACCEPT, CONTENT_TYPE};
-use routes::{payees::{create_payee, get_payees, PayeesApi}, transactions::update_transaction};
-use routes::transactions::{create_transaction, get_transactions, TransactionApi};
+use routes::{budgets::delete_budget, transactions::{create_transaction, get_transactions, TransactionApi}};
 use routes::users::{create_user, get_user, get_users, UserApi};
 use routes::{
     bank_accounts::{create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi},
     budgets::{create_budget, get_budgets, BudgetsApi},
+};
+use routes::{
+    bank_accounts::{delete_bank_account, update_bank_account},
+    budgets::update_budget,
+    payees::{create_payee, get_payees, PayeesApi},
+    transactions::update_transaction,
 };
 use sqlx::MySqlPool;
 use tower::ServiceBuilder;
@@ -37,14 +42,19 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
             "/api/bank-accounts",
             get(get_bank_accounts).post(create_bank_account),
         )
-        .route("/api/bank-accounts/:accountId", get(get_bank_account))
+        .route(
+            "/api/bank-accounts/:accountId",
+            get(get_bank_account)
+                .delete(delete_bank_account)
+                .put(update_bank_account),
+        )
         .route(
             "/api/bank-accounts/:bankAccountId/transactions",
             get(get_transactions).post(create_transaction),
         )
-        .route("/api/transactions/:transactionId",
-            put(update_transaction))
+        .route("/api/transactions/:transactionId", put(update_transaction))
         .route("/api/budgets", get(get_budgets).post(create_budget))
+        .route("/api/budgets/:budgetId", put(update_budget).delete(delete_budget))
         .with_state(db_pool)
         .layer(
             ServiceBuilder::new()
@@ -73,7 +83,7 @@ fn build_cors() -> CorsLayer {
     let allow_origin = std::env::var("CORS_ALLOW_ORIGIN").unwrap_or("localhost".to_owned());
 
     CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::PUT])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([ACCEPT, CONTENT_TYPE])
         .allow_origin(allow_origin.parse::<HeaderValue>().unwrap())
 }
@@ -120,6 +130,7 @@ pub fn init_logger() {
         .init();
 }
 
+#[derive(Debug)]
 pub enum AppError {
     NotFound(anyhow::Error),
     BadRequest(anyhow::Error),
