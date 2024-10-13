@@ -23,7 +23,7 @@ pub async fn create_users(db_pool: MySqlPool) {
     response.assert_created();
     let user_id = response.json::<Uuid>();
 
-    let user = db::users::get_user(&db_pool, user_id).await.unwrap();
+    let user = db::users::get_single(&db_pool, user_id).await.unwrap();
 
     assert_eq!(
         user,
@@ -54,7 +54,7 @@ pub async fn get_users(db_pool: MySqlPool) {
     users.sort_by_key(|x| x.id);
 
     for user in users.iter() {
-        db::users::create_user(
+        db::users::create(
             &db_pool,
             user.id,
             CreateUserRequest::new(user.name.clone(), user.email.clone()),
@@ -74,7 +74,7 @@ pub async fn get_user(db_pool: MySqlPool) {
 
     let user_id = Uuid::new_v4();
     let user = User::new(user_id, "Name".to_owned(), "email@email.com".to_owned());
-    db::users::create_user(
+    db::users::create(
         &db_pool,
         user_id,
         CreateUserRequest::new(user.name.clone(), user.email.clone()),

@@ -6,7 +6,7 @@ use rust_decimal_macros::dec;
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db::{self, DbError},
+    db::{self, Error},
     models::{
         BankAccount, Budget, CreateBankAccountRequest, CreateUserRequest, UpdateBankAccountRequest,
     },
@@ -21,11 +21,11 @@ static BANK_ACCOUNT_ID: OnceLock<Uuid> = OnceLock::new();
 static BUDGET_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
-    let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
-    let budget_id = *BUDGET_ID.get_or_init(|| Uuid::new_v4());
+    let user_id = *USER_ID.get_or_init(Uuid::new_v4);
+    let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(Uuid::new_v4);
+    let budget_id = *BUDGET_ID.get_or_init(Uuid::new_v4);
 
-    db::users::create_user(
+    db::users::create(
         db_pool,
         user_id,
         CreateUserRequest::new("name".to_owned(), "someone@email.com".to_owned()),
@@ -33,7 +33,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::bank_accounts::create_bank_account(
+    db::bank_accounts::create(
         db_pool,
         bank_account_id,
         CreateBankAccountRequest::new(
@@ -45,7 +45,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::budgets::create_budget(
+    db::budgets::create(
         db_pool,
         Budget::new(budget_id, "Budget".into(), None, user_id),
     )
@@ -73,7 +73,7 @@ pub async fn create_bank_account(db_pool: MySqlPool) {
     let bank_account_id: Uuid = response.json();
 
     let found_bank_account =
-        db::bank_accounts::get_bank_account(&db_pool, bank_account_id, user_id)
+        db::bank_accounts::get_single(&db_pool, bank_account_id, user_id)
             .await
             .unwrap();
 
@@ -121,7 +121,7 @@ pub async fn update_bank_account(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::bank_accounts::create_bank_account(
+    db::bank_accounts::create(
         &db_pool,
         id,
         CreateBankAccountRequest::new("name".into(), dec!(0), user_id),
@@ -136,7 +136,7 @@ pub async fn update_bank_account(db_pool: MySqlPool) {
 
     response.assert_ok();
 
-    let get_result = db::bank_accounts::get_bank_account(&db_pool, id, user_id)
+    let get_result = db::bank_accounts::get_single(&db_pool, id, user_id)
         .await
         .unwrap();
 
@@ -153,7 +153,7 @@ pub async fn delete_bank_account(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::bank_accounts::create_bank_account(
+    db::bank_accounts::create(
         &db_pool,
         id,
         CreateBankAccountRequest::new("name".into(), dec!(0), user_id),
@@ -167,7 +167,7 @@ pub async fn delete_bank_account(db_pool: MySqlPool) {
 
     response.assert_ok();
 
-    let get_result = db::bank_accounts::get_bank_account(&db_pool, id, user_id).await;
+    let get_result = db::bank_accounts::get_single(&db_pool, id, user_id).await;
 
-    assert!(matches!(get_result, Err(DbError::NotFound)));
+    assert!(matches!(get_result, Err(Error::NotFound)));
 }

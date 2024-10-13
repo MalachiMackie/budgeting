@@ -1,2 +1,2 @@
-pub mod decimal_extensions;
-pub mod once_lock_extensions;
+pub mod decimal;
+pub mod once_lock;

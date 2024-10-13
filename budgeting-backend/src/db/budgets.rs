@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::models::{Budget, BudgetTarget, Schedule};
 
-use super::{schedule, DbError};
+use super::{schedule, Error};
 
 #[derive(Clone, Debug, PartialEq)]
 struct BudgetDbModel {
@@ -102,7 +102,7 @@ impl BudgetDbModel {
     }
 }
 
-pub async fn create_budget(db_pool: &MySqlPool, budget: Budget) -> Result<(), DbError> {
+pub async fn create(db_pool: &MySqlPool, budget: Budget) -> Result<(), Error> {
     let db_model: BudgetDbModel = budget.into();
 
     sqlx::query!(
@@ -121,7 +121,7 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
     Ok(())
 }
 
-pub async fn get_budget(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, DbError> {
+pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> {
     let budget = sqlx::query_as!(
         BudgetDbModel,
         "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
@@ -134,19 +134,19 @@ pub async fn get_budget(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, DbError
     let schedule = if let Some(schedule_id) = &budget.target_schedule_id {
         let schedule_id = schedule_id
             .parse::<Uuid>()
-            .map_err(|e| DbError::MappingError { error: e.into() })?;
+            .map_err(|e| Error::MappingError { error: e.into() })?;
 
-        Some(schedule::get_schedule(db_pool, schedule_id).await?)
+        Some(schedule::get_single(db_pool, schedule_id).await?)
     } else {
         None
     };
 
     budget
         .try_into_budget(schedule)
-        .map_err(|e| DbError::MappingError { error: e })
+        .map_err(|e| Error::MappingError { error: e })
 }
 
-pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, DbError> {
+pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Error> {
     let budget_db_models = sqlx::query_as!(
         BudgetDbModel,
         r"SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
@@ -160,12 +160,12 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
         .filter_map(|b| b.target_schedule_id.as_ref())
         .map(|schedule_id| schedule_id.parse())
         .collect::<Result<Box<[Uuid]>, _>>()
-        .map_err(|e| DbError::MappingError { error: e.into() })?;
+        .map_err(|e| Error::MappingError { error: e.into() })?;
 
     let schedules = if schedule_ids.is_empty() {
         Box::new([])
     } else {
-        schedule::get_schedules_by_ids(db_pool, &schedule_ids).await?
+        schedule::get_by_ids(db_pool, &schedule_ids).await?
     };
 
     let mut schedules: HashMap<_, _> = schedules
@@ -183,14 +183,14 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
             .as_ref()
             .map(|s| s.parse::<Uuid>())
             .transpose()
-            .map_err(|e| DbError::MappingError { error: e.into() })?;
+            .map_err(|e| Error::MappingError { error: e.into() })?;
 
         // a schedule is owned by a single budget, so removing from schedules should be ok
         let schedule = schedule_id.and_then(|s| schedules.remove(&s));
 
         let budget: Budget = db_model
             .try_into_budget(schedule)
-            .map_err(|e| DbError::MappingError { error: e })?;
+            .map_err(|e| Error::MappingError { error: e })?;
 
         budgets.push(budget);
     }
@@ -198,7 +198,7 @@ pub async fn get_budgets(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budg
     Ok(budgets.into_boxed_slice())
 }
 
-pub async fn delete_budget(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbError> {
+pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
 
     sqlx::query!("DELETE FROM Budgets WHERE id = ?", id.as_simple())
         .execute(db_pool)
@@ -207,7 +207,7 @@ pub async fn delete_budget(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbError>
     Ok(())
 }
 
-pub async fn update_budget(db_pool: &MySqlPool, budget: Budget) -> Result<(), DbError> {
+pub async fn update(db_pool: &MySqlPool, budget: Budget) -> Result<(), Error> {
     let db_model: BudgetDbModel = budget.into();
     sqlx::query!(
         "UPDATE Budgets
@@ -360,7 +360,7 @@ mod tests {
 
         use crate::{
             db,
-            extensions::once_lock_extensions::OnceLockExt,
+            extensions::once_lock::OnceLockExt,
             models::{CreateUserRequest, RepeatingTargetType, SchedulePeriod},
         };
 
@@ -371,7 +371,7 @@ mod tests {
         async fn test_init(db_pool: &MySqlPool) {
             let user_id = *USER_ID.init_uuid();
 
-            db::users::create_user(
+            db::users::create(
                 db_pool,
                 user_id,
                 CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -394,7 +394,7 @@ mod tests {
                 },
             };
 
-            db::schedule::create_schedule(&db_pool, schedule.clone())
+            db::schedule::create(&db_pool, schedule.clone())
                 .await
                 .unwrap();
 
@@ -409,12 +409,12 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
-            let fetched = get_budgets(&db_pool, user_id).await.unwrap();
+            let fetched = get(&db_pool, user_id).await.unwrap();
             assert_eq!(fetched, vec![budget.clone()].into_boxed_slice());
 
-            let fetched_single = get_budget(&db_pool, id).await.unwrap();
+            let fetched_single = get_single(&db_pool, id).await.unwrap();
             assert_eq!(fetched_single, budget);
         }
 
@@ -433,10 +433,10 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
-            let fetched = get_budgets(&db_pool, user_id).await.unwrap();
-            assert_eq!(fetched, vec![budget].into_boxed_slice())
+            let fetched = get(&db_pool, user_id).await.unwrap();
+            assert_eq!(fetched, vec![budget].into_boxed_slice());
         }
 
         #[sqlx::test]
@@ -453,7 +453,7 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
             let new_schedule = Schedule {
                 id: new_schedule_id,
@@ -462,7 +462,7 @@ mod tests {
                 },
             };
 
-            schedule::create_schedule(&db_pool, new_schedule.clone())
+            schedule::create(&db_pool, new_schedule.clone())
                 .await
                 .unwrap();
 
@@ -474,9 +474,9 @@ mod tests {
 
             let updated = Budget::new(id, "newName".into(), Some(target), user_id);
 
-            update_budget(&db_pool, updated.clone()).await.unwrap();
+            update(&db_pool, updated.clone()).await.unwrap();
 
-            let fetched = get_budget(&db_pool, id).await.unwrap();
+            let fetched = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(fetched, updated);
         }
@@ -495,7 +495,7 @@ mod tests {
                 },
             };
 
-            schedule::create_schedule(&db_pool, schedule.clone())
+            schedule::create(&db_pool, schedule.clone())
                 .await
                 .unwrap();
 
@@ -512,7 +512,7 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
             let updated_target = BudgetTarget::OneTime {
                 target_amount: dec!(1.2),
@@ -520,9 +520,9 @@ mod tests {
 
             let updated = Budget::new(id, "newName".into(), Some(updated_target), user_id);
 
-            update_budget(&db_pool, updated.clone()).await.unwrap();
+            update(&db_pool, updated.clone()).await.unwrap();
 
-            let fetched = get_budget(&db_pool, id).await.unwrap();
+            let fetched = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(fetched, updated);
         }
@@ -541,7 +541,7 @@ mod tests {
                 },
             };
 
-            schedule::create_schedule(&db_pool, schedule.clone())
+            schedule::create(&db_pool, schedule.clone())
                 .await
                 .unwrap();
 
@@ -558,13 +558,13 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
             let updated = Budget::new(id, "newName".into(), None, user_id);
 
-            update_budget(&db_pool, updated.clone()).await.unwrap();
+            update(&db_pool, updated.clone()).await.unwrap();
 
-            let fetched = get_budget(&db_pool, id).await.unwrap();
+            let fetched = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(fetched, updated);
         }
@@ -582,13 +582,13 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
             let updated = Budget::new(id, "newName".into(), None, user_id);
 
-            update_budget(&db_pool, updated.clone()).await.unwrap();
+            update(&db_pool, updated.clone()).await.unwrap();
 
-            let fetched = get_budget(&db_pool, id).await.unwrap();
+            let fetched = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(fetched, updated);
         }
@@ -607,7 +607,7 @@ mod tests {
                 },
             };
 
-            schedule::create_schedule(&db_pool, schedule.clone())
+            schedule::create(&db_pool, schedule.clone())
                 .await
                 .unwrap();
 
@@ -624,7 +624,7 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, budget.clone()).await.unwrap();
 
             let updated_schedule = Schedule {
                 id: schedule_id,
@@ -633,7 +633,7 @@ mod tests {
                 },
             };
 
-            schedule::update_schedule(&db_pool, updated_schedule.clone())
+            schedule::update(&db_pool, updated_schedule.clone())
                 .await
                 .unwrap();
 
@@ -645,9 +645,9 @@ mod tests {
 
             let updated = Budget::new(id, "newName".into(), Some(updated_target), user_id);
 
-            update_budget(&db_pool, updated.clone()).await.unwrap();
+            update(&db_pool, updated.clone()).await.unwrap();
 
-            let fetched = get_budget(&db_pool, id).await.unwrap();
+            let fetched = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(fetched, updated);
         }
@@ -667,11 +667,11 @@ mod tests {
                 user_id,
             };
 
-            create_budget(&db_pool, budget).await.unwrap();
+            create(&db_pool, budget).await.unwrap();
 
-            delete_budget(&db_pool, id).await.unwrap();
+            delete(&db_pool, id).await.unwrap();
 
-            let find_result = get_budgets(&db_pool, user_id).await.unwrap();
+            let find_result = get(&db_pool, user_id).await.unwrap();
 
             assert_eq!(find_result.len(), 0);
         }

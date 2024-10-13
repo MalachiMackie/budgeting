@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::models::{CreateTransactionRequest, Transaction};
 
-use super::DbError;
+use super::Error;
 
 struct TransactionModel {
     id: String,
@@ -31,12 +31,12 @@ impl TryFrom<TransactionModel> for Transaction {
     }
 }
 
-pub async fn create_transaction(
+pub async fn create(
     db_pool: &MySqlPool,
     id: Uuid,
     bank_account_id: Uuid,
     request: CreateTransactionRequest,
-) -> Result<(), DbError> {
+) -> Result<(), Error> {
     sqlx::query!(
         r"
             INSERT INTO Transactions (id, payee_id, date, amount, bank_account_id, budget_id)
@@ -54,10 +54,7 @@ pub async fn create_transaction(
     Ok(())
 }
 
-pub async fn update_transaction(
-    db_pool: &MySqlPool,
-    transaction: Transaction,
-) -> Result<(), DbError> {
+pub async fn update(db_pool: &MySqlPool, transaction: Transaction) -> Result<(), Error> {
     sqlx::query!(
         "UPDATE Transactions
     SET amount = ?,
@@ -77,10 +74,7 @@ pub async fn update_transaction(
     Ok(())
 }
 
-pub async fn get_transactions(
-    db_pool: &MySqlPool,
-    bank_account_id: Uuid,
-) -> Result<Box<[Transaction]>, DbError> {
+pub async fn get(db_pool: &MySqlPool, bank_account_id: Uuid) -> Result<Box<[Transaction]>, Error> {
     let transactions = sqlx::query_as!(
         TransactionModel,
         "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
@@ -93,21 +87,18 @@ pub async fn get_transactions(
     Ok(transactions)
 }
 
-pub async fn get_transaction(
-    db_pool: &MySqlPool,
-    transaction_id: Uuid,
-) -> Result<Transaction, DbError> {
+pub async fn get_single(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<Transaction, Error> {
     sqlx::query_as!(
         TransactionModel,
         "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE id = ?", transaction_id.as_simple())
         .fetch_optional(db_pool)
         .await?
-        .ok_or(DbError::NotFound)?
+        .ok_or(Error::NotFound)?
         .try_into()
-        .map_err(|e| DbError::MappingError { error: e })
+        .map_err(|e| Error::MappingError { error: e })
 }
 
-pub async fn delete_transaction(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<(), DbError> {
+pub async fn delete(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<(), Error> {
     sqlx::query!(
         "DELETE FROM Transactions WHERE id = ?",
         transaction_id.as_simple()
@@ -127,7 +118,7 @@ mod tests {
 
     use crate::{
         db,
-        extensions::decimal_extensions::DecimalExt,
+        extensions::decimal::DecimalExt,
         models::{Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateUserRequest},
     };
 
@@ -139,12 +130,12 @@ mod tests {
     static PAYEE_ID: OnceLock<Uuid> = OnceLock::new();
 
     async fn test_init(db_pool: &MySqlPool) {
-        let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
-        let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
-        let budget_id = *BUDGET_ID.get_or_init(|| Uuid::new_v4());
-        let payee_id = *PAYEE_ID.get_or_init(|| Uuid::new_v4());
+        let user_id = *USER_ID.get_or_init(Uuid::new_v4);
+        let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(Uuid::new_v4);
+        let budget_id = *BUDGET_ID.get_or_init(Uuid::new_v4);
+        let payee_id = *PAYEE_ID.get_or_init(Uuid::new_v4);
 
-        db::users::create_user(
+        db::users::create(
             db_pool,
             user_id,
             CreateUserRequest::new("User".into(), "email@email.com".into()),
@@ -152,7 +143,7 @@ mod tests {
         .await
         .unwrap();
 
-        db::bank_accounts::create_bank_account(
+        db::bank_accounts::create(
             db_pool,
             bank_account_id,
             CreateBankAccountRequest::new("BankAccount".into(), Decimal::default(), user_id),
@@ -160,14 +151,14 @@ mod tests {
         .await
         .unwrap();
 
-        db::budgets::create_budget(
+        db::budgets::create(
             db_pool,
             Budget::new(budget_id, "Budget".into(), None, user_id),
         )
         .await
         .unwrap();
 
-        db::payees::create_payee(
+        db::payees::create(
             db_pool,
             payee_id,
             CreatePayeeRequest::new("Payee".into(), user_id),
@@ -185,7 +176,7 @@ mod tests {
         let payee_id = *PAYEE_ID.get().unwrap();
         let budget_id = *BUDGET_ID.get().unwrap();
 
-        let result = create_transaction(
+        let result = create(
             &db_pool,
             transaction_id,
             bank_account_id,
@@ -200,7 +191,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let transactions = get_transactions(&db_pool, bank_account_id).await;
+        let transactions = get(&db_pool, bank_account_id).await;
 
         assert!(transactions.is_ok());
 
@@ -221,7 +212,7 @@ mod tests {
                 budget_id
             )
         );
-        assert!(amount.approximately_eq(dec!(1.2), dec!(0.001)))
+        assert!(amount.approximately_eq(dec!(1.2), dec!(0.001)));
     }
 
     #[sqlx::test]
@@ -237,7 +228,7 @@ mod tests {
         let payee_id_2 = Uuid::new_v4();
         let budget_id_2 = Uuid::new_v4();
 
-        db::payees::create_payee(
+        db::payees::create(
             &db_pool,
             payee_id_2,
             CreatePayeeRequest::new("Payee2".into(), user_id),
@@ -245,14 +236,14 @@ mod tests {
         .await
         .unwrap();
 
-        db::budgets::create_budget(
+        db::budgets::create(
             &db_pool,
             Budget::new(budget_id_2, "Budget2".into(), None, user_id),
         )
         .await
         .unwrap();
 
-        create_transaction(
+        create(
             &db_pool,
             transaction_id,
             bank_account_id,
@@ -275,11 +266,11 @@ mod tests {
             budget_id_2,
         );
 
-        let result = update_transaction(&db_pool, updated.clone()).await;
+        let result = update(&db_pool, updated.clone()).await;
 
         assert!(result.is_ok());
 
-        let found_transactions = get_transactions(&db_pool, bank_account_id).await.unwrap();
+        let found_transactions = get(&db_pool, bank_account_id).await.unwrap();
 
         assert!(found_transactions.len() == 1);
         let mut found_transaction = found_transactions[0].clone();
@@ -303,7 +294,7 @@ mod tests {
         let payee_id = *PAYEE_ID.get().unwrap();
         let budget_id = *BUDGET_ID.get().unwrap();
 
-        create_transaction(
+        create(
             &db_pool,
             transaction_id,
             bank_account_id,
@@ -317,12 +308,12 @@ mod tests {
         .await
         .unwrap();
 
-        let result = delete_transaction(&db_pool, transaction_id).await;
+        let result = delete(&db_pool, transaction_id).await;
 
         assert!(result.is_ok());
 
-        let find_result = get_transaction(&db_pool, transaction_id).await;
+        let find_result = get_single(&db_pool, transaction_id).await;
 
-        assert!(matches!(find_result, Err(DbError::NotFound)))
+        assert!(matches!(find_result, Err(Error::NotFound)));
     }
 }

@@ -9,11 +9,18 @@ use sqlx::MySqlPool;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, models::{CreateUserRequest, User}, AppError};
+use crate::{
+    db,
+    models::{CreateUserRequest, User},
+    AppError,
+};
 
 #[derive(OpenApi)]
-#[openapi(paths(get_users, get_user, create_user), components(schemas(User, CreateUserRequest)))]
-pub struct UserApi;
+#[openapi(
+    paths(get, get_single, create),
+    components(schemas(User, CreateUserRequest))
+)]
+pub struct Api;
 
 const API_TAG: &str = "Users";
 
@@ -26,7 +33,7 @@ const API_TAG: &str = "Users";
     request_body = CreateUserRequest,
     tag = API_TAG
 )]
-pub async fn create_user(
+pub async fn create(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<Uuid>), AppError> {
@@ -43,7 +50,7 @@ pub async fn create_user(
 
     let id = Uuid::new_v4();
 
-    db::users::create_user(&db_pool, id, request)
+    db::users::create(&db_pool, id, request)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create user")))?;
 
@@ -58,8 +65,8 @@ pub async fn create_user(
     ),
     tag = API_TAG
 )]
-pub async fn get_users(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[User]>>, AppError> {
-    db::users::get_users(&db_pool)
+pub async fn get(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[User]>>, AppError> {
+    db::users::get(&db_pool)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get users")))
@@ -76,11 +83,11 @@ pub async fn get_users(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[Use
     ),
     tag = API_TAG
 )]
-pub async fn get_user(
+pub async fn get_single(
     State(db_pool): State<MySqlPool>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<User>, AppError> {
-    db::users::get_user(&db_pool, user_id)
+    db::users::get_single(&db_pool, user_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not get user")))
         .map(Json)

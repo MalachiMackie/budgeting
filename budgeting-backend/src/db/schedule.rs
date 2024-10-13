@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::models::{Schedule, SchedulePeriod};
 
-use super::DbError;
+use super::Error;
 
 #[derive(FromRow, PartialEq, Debug, Clone)]
 struct ScheduleDbModel {
@@ -51,6 +51,8 @@ impl TryFrom<ScheduleDbModel> for Schedule {
                             "custom_period_type must be set when period_type is custom"
                         ))?
                         .parse()?,
+                    #[allow(clippy::cast_possible_truncation)]
+                    #[allow(clippy::cast_sign_loss)]
                     every_x_periods: value.custom_period_every_count.ok_or(anyhow!(
                         "Expected custom_period_every_count to be set when period_type is custom"
                     ))? as u8,
@@ -71,7 +73,7 @@ impl From<Schedule> for ScheduleDbModel {
                 | SchedulePeriod::Fortnightly { starting_on }
                 | SchedulePeriod::Monthly { starting_on }
                 | SchedulePeriod::Yearly { starting_on } => Some(starting_on),
-                _ => None,
+                SchedulePeriod::Custom { .. } => None,
             },
             custom_period_type: if let SchedulePeriod::Custom { period, .. } = &value.period {
                 Some(period.to_string())
@@ -82,7 +84,7 @@ impl From<Schedule> for ScheduleDbModel {
                 every_x_periods, ..
             } = &value.period
             {
-                Some(*every_x_periods as i32)
+                Some(i32::from(*every_x_periods))
             } else {
                 None
             },
@@ -90,7 +92,7 @@ impl From<Schedule> for ScheduleDbModel {
     }
 }
 
-pub async fn create_schedule(db_pool: &MySqlPool, schedule: Schedule) -> Result<(), DbError> {
+pub async fn create(db_pool: &MySqlPool, schedule: Schedule) -> Result<(), Error> {
     let db_model: ScheduleDbModel = schedule.into();
 
     sqlx::query!(
@@ -107,7 +109,7 @@ VALUE (?, ?, ?, ?, ?)",
     Ok(())
 }
 
-pub async fn get_schedule(db_pool: &MySqlPool, id: Uuid) -> Result<Schedule, DbError> {
+pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Schedule, Error> {
     sqlx::query_as!(
         ScheduleDbModel,
         r"
@@ -119,18 +121,12 @@ WHERE id = ?",
     .fetch_optional(db_pool)
     .await?
     .map(TryInto::try_into)
-    .ok_or(DbError::NotFound)?
-    .map_err(|e| DbError::MappingError { error: e })
+    .ok_or(Error::NotFound)?
+    .map_err(|e| Error::MappingError { error: e })
 }
 
-pub async fn get_schedules_by_ids(
-    db_pool: &MySqlPool,
-    ids: &[Uuid],
-) -> Result<Box<[Schedule]>, DbError> {
-    let mut params = Vec::new();
-    for _ in 0..ids.len() {
-        params.push("?");
-    }
+pub async fn get_by_ids(db_pool: &MySqlPool, ids: &[Uuid]) -> Result<Box<[Schedule]>, Error> {
+    let params = vec!["?"; ids.len()];
 
     let query_string = format!(
         r"SELECT id, period_type, period_starting_on, custom_period_type, custom_period_every_count
@@ -142,7 +138,7 @@ WHERE id IN ({})",
     let mut query = sqlx::query_as::<MySql, ScheduleDbModel>(query_string.as_str());
 
     for id in ids {
-        query = query.bind(id.as_simple())
+        query = query.bind(id.as_simple());
     }
 
     query
@@ -151,10 +147,10 @@ WHERE id IN ({})",
         .into_iter()
         .map(TryInto::try_into)
         .collect::<Result<Box<[Schedule]>, _>>()
-        .map_err(|e| DbError::MappingError { error: e })
+        .map_err(|e| Error::MappingError { error: e })
 }
 
-pub async fn delete_schedule(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbError> {
+pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
     sqlx::query!("DELETE FROM Schedules WHERE id = ?", id.as_simple())
         .execute(db_pool)
         .await?;
@@ -162,7 +158,7 @@ pub async fn delete_schedule(db_pool: &MySqlPool, id: Uuid) -> Result<(), DbErro
     Ok(())
 }
 
-pub async fn update_schedule(db_pool: &MySqlPool, schedule: Schedule) -> Result<(), DbError> {
+pub async fn update(db_pool: &MySqlPool, schedule: Schedule) -> Result<(), Error> {
     let db_model: ScheduleDbModel = schedule.into();
     sqlx::query!(
         "UPDATE Schedules
@@ -192,6 +188,7 @@ mod tests {
 
         use super::*;
 
+        #[allow(clippy::too_many_lines)]
         #[test]
         pub fn test_mapping_success() {
             let id = Uuid::new_v4();
@@ -213,7 +210,7 @@ mod tests {
             let pairs = vec![
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Weekly {
                             starting_on: started_on,
                         },
@@ -225,7 +222,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Fortnightly {
                             starting_on: started_on,
                         },
@@ -237,7 +234,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Monthly {
                             starting_on: started_on,
                         },
@@ -249,7 +246,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Yearly {
                             starting_on: started_on,
                         },
@@ -261,7 +258,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Custom {
                             period: SchedulePeriodType::Weekly,
                             every_x_periods: 1,
@@ -274,7 +271,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Custom {
                             period: SchedulePeriodType::Fortnightly,
                             every_x_periods: 1,
@@ -287,7 +284,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Custom {
                             period: SchedulePeriodType::Monthly,
                             every_x_periods: 1,
@@ -300,7 +297,7 @@ mod tests {
                 ),
                 (
                     Schedule {
-                        id: id,
+                        id,
                         period: SchedulePeriod::Custom {
                             period: SchedulePeriodType::Yearly,
                             every_x_periods: 1,
@@ -378,10 +375,10 @@ mod tests {
         #[sqlx::test]
         pub async fn create_schedule_test(db_pool: MySqlPool) {
             let id = Uuid::new_v4();
-            let result = create_schedule(
+            let result = create(
                 &db_pool,
                 Schedule {
-                    id: id,
+                    id,
                     period: SchedulePeriod::Weekly {
                         starting_on: NaiveDate::from_ymd_opt(2024, 9, 27).unwrap(),
                     },
@@ -410,16 +407,16 @@ FROM Schedules"
                     custom_period_type: None,
                     custom_period_every_count: None
                 }]
-            )
+            );
         }
 
         #[sqlx::test]
         pub async fn delete_schedule_test(db_pool: MySqlPool) {
             let id = Uuid::new_v4();
-            create_schedule(
+            create(
                 &db_pool,
                 Schedule {
-                    id: id,
+                    id,
                     period: SchedulePeriod::Weekly {
                         starting_on: NaiveDate::from_ymd_opt(2024, 9, 27).unwrap(),
                     },
@@ -428,21 +425,21 @@ FROM Schedules"
             .await
             .unwrap();
 
-            let result = delete_schedule(&db_pool, id).await;
+            let result = delete(&db_pool, id).await;
             assert!(result.is_ok());
 
-            let find_result = get_schedule(&db_pool, id).await;
+            let find_result = get_single(&db_pool, id).await;
 
-            assert!(matches!(find_result, Err(DbError::NotFound)));
+            assert!(matches!(find_result, Err(Error::NotFound)));
         }
 
         #[sqlx::test]
         pub async fn update_schedule_test(db_pool: MySqlPool) {
             let id = Uuid::new_v4();
-            create_schedule(
+            create(
                 &db_pool,
                 Schedule {
-                    id: id,
+                    id,
                     period: SchedulePeriod::Weekly {
                         starting_on: NaiveDate::from_ymd_opt(2024, 9, 27).unwrap(),
                     },
@@ -459,10 +456,10 @@ FROM Schedules"
                 },
             };
 
-            let result = update_schedule(&db_pool, updated.clone()).await;
+            let result = update(&db_pool, updated.clone()).await;
             assert!(result.is_ok());
 
-            let find_result = get_schedule(&db_pool, id).await.unwrap();
+            let find_result = get_single(&db_pool, id).await.unwrap();
 
             assert_eq!(updated, find_result);
         }

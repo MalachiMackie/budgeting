@@ -1,3 +1,8 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![deny(warnings)]
 pub mod db;
 pub mod extensions;
 pub mod models;
@@ -11,17 +16,12 @@ use axum::{
     Router,
 };
 use http::header::{ACCEPT, CONTENT_TYPE};
-use routes::{budgets::delete_budget, transactions::{create_transaction, get_transactions, TransactionApi}};
-use routes::users::{create_user, get_user, get_users, UserApi};
 use routes::{
-    bank_accounts::{create_bank_account, get_bank_account, get_bank_accounts, BankAccountApi},
-    budgets::{create_budget, get_budgets, BudgetsApi},
-};
-use routes::{
-    bank_accounts::{delete_bank_account, update_bank_account},
-    budgets::update_budget,
-    payees::{create_payee, get_payees, PayeesApi},
-    transactions::update_transaction,
+    bank_accounts::{self},
+    budgets::{self},
+    payees::{self},
+    transactions::{self},
+    users::{self},
 };
 use sqlx::MySqlPool;
 use tower::ServiceBuilder;
@@ -35,26 +35,32 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
     let cors_layer = build_cors();
 
     Router::new()
-        .route("/api/payees", get(get_payees).post(create_payee))
-        .route("/api/users", get(get_users).post(create_user))
-        .route("/api/users/:userId", get(get_user))
+        .route("/api/payees", get(payees::get).post(payees::create))
+        .route("/api/users", get(users::get).post(users::create))
+        .route("/api/users/:userId", get(users::get_single))
         .route(
             "/api/bank-accounts",
-            get(get_bank_accounts).post(create_bank_account),
+            get(bank_accounts::get).post(bank_accounts::create),
         )
         .route(
             "/api/bank-accounts/:accountId",
-            get(get_bank_account)
-                .delete(delete_bank_account)
-                .put(update_bank_account),
+            get(bank_accounts::get_single)
+                .delete(bank_accounts::delete)
+                .put(bank_accounts::update),
         )
         .route(
             "/api/bank-accounts/:bankAccountId/transactions",
-            get(get_transactions).post(create_transaction),
+            get(transactions::get).post(transactions::create),
         )
-        .route("/api/transactions/:transactionId", put(update_transaction))
-        .route("/api/budgets", get(get_budgets).post(create_budget))
-        .route("/api/budgets/:budgetId", put(update_budget).delete(delete_budget))
+        .route(
+            "/api/transactions/:transactionId",
+            put(transactions::update),
+        )
+        .route("/api/budgets", get(budgets::get).post(budgets::create))
+        .route(
+            "/api/budgets/:budgetId",
+            put(budgets::update).delete(budgets::delete),
+        )
         .with_state(db_pool)
         .layer(
             ServiceBuilder::new()
@@ -94,11 +100,11 @@ struct ApiDoc;
 
 pub fn build_swagger_ui() -> SwaggerUi {
     let mut openapi = ApiDoc::openapi();
-    openapi.merge(PayeesApi::openapi());
-    openapi.merge(TransactionApi::openapi());
-    openapi.merge(BankAccountApi::openapi());
-    openapi.merge(UserApi::openapi());
-    openapi.merge(BudgetsApi::openapi());
+    openapi.merge(payees::Api::openapi());
+    openapi.merge(transactions::Api::openapi());
+    openapi.merge(bank_accounts::Api::openapi());
+    openapi.merge(users::Api::openapi());
+    openapi.merge(budgets::Api::openapi());
 
     SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi)
 }
@@ -151,7 +157,7 @@ impl IntoResponse for AppError {
         match self {
             AppError::InternalServerError(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Something went rong: {}", e),
+                format!("Something went rong: {e}"),
             ),
             AppError::BadRequest(e) => (StatusCode::BAD_REQUEST, e.to_string()),
             AppError::NotFound(e) => (StatusCode::NOT_FOUND, e.to_string()),

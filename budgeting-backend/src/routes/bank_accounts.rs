@@ -17,16 +17,10 @@ use crate::{
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(
-        get_bank_accounts,
-        get_bank_account,
-        create_bank_account,
-        delete_bank_account,
-        update_bank_account
-    ),
+    paths(get, get_single, create, delete, update),
     components(schemas(BankAccount, CreateBankAccountRequest))
 )]
-pub struct BankAccountApi;
+pub struct Api;
 
 const API_TAG: &str = "BankAccounts";
 
@@ -39,7 +33,7 @@ const API_TAG: &str = "BankAccounts";
     request_body = CreateBankAccountRequest,
     tag = API_TAG
 )]
-pub async fn create_bank_account(
+pub async fn create(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateBankAccountRequest>,
 ) -> Result<(StatusCode, Json<Uuid>), AppError> {
@@ -53,7 +47,7 @@ pub async fn create_bank_account(
 
     let id = Uuid::new_v4();
 
-    db::bank_accounts::create_bank_account(&db_pool, id, request)
+    db::bank_accounts::create(&db_pool, id, request)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create bank account")))?;
 
@@ -76,12 +70,12 @@ pub struct GetBankAccountsQuery {
     ),
     tag = API_TAG
 )]
-pub async fn get_bank_accounts(
+pub async fn get(
     Query(query): Query<GetBankAccountsQuery>,
     State(db_pool): State<MySqlPool>,
 ) -> Result<Json<Box<[BankAccount]>>, AppError> {
     // todo: validate user_id exists
-    db::bank_accounts::get_bank_accounts(&db_pool, query.user_id)
+    db::bank_accounts::get(&db_pool, query.user_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get bank accounts")))
@@ -114,7 +108,7 @@ pub struct UpdateBankAccountQuery {
     ),
     tag = API_TAG
 )]
-pub async fn get_bank_account(
+pub async fn get_single(
     Query(query): Query<GetBankAccountQuery>,
     State(db_pool): State<MySqlPool>,
     Path(account_id): Path<Uuid>,
@@ -128,7 +122,7 @@ pub async fn get_bank_account(
         return Err(AppError::BadRequest(anyhow!("user_id must be set")));
     }
 
-    db::bank_accounts::get_bank_account(&db_pool, account_id, query.user_id)
+    db::bank_accounts::get_single(&db_pool, account_id, query.user_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get bank_account with id {account_id}")))
@@ -146,16 +140,16 @@ pub async fn get_bank_account(
     ),
     tag = API_TAG
 )]
-pub async fn delete_bank_account(
+pub async fn delete(
     State(db_pool): State<MySqlPool>,
     Path(account_id): Path<Uuid>,
     Query(DeleteBankAccountQuery { user_id }): Query<DeleteBankAccountQuery>,
 ) -> Result<(), AppError> {
-    db::bank_accounts::get_bank_account(&db_pool, account_id, user_id)
+    db::bank_accounts::get_single(&db_pool, account_id, user_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to find bank account")))?;
 
-    db::bank_accounts::delete_bank_account(&db_pool, account_id)
+    db::bank_accounts::delete(&db_pool, account_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to delete bank account")))?;
 
@@ -174,17 +168,17 @@ pub async fn delete_bank_account(
     ),
     tag = API_TAG
 )]
-pub async fn update_bank_account(
+pub async fn update(
     State(db_pool): State<MySqlPool>,
     Path(account_id): Path<Uuid>,
     Query(UpdateBankAccountQuery { user_id }): Query<UpdateBankAccountQuery>,
     Json(request): Json<UpdateBankAccountRequest>,
 ) -> Result<(), AppError> {
-    _ = db::bank_accounts::get_bank_account(&db_pool, account_id, user_id)
+    _ = db::bank_accounts::get_single(&db_pool, account_id, user_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to get bank account")))?;
 
-    db::bank_accounts::update_bank_account(&db_pool, account_id, &request.name)
+    db::bank_accounts::update(&db_pool, account_id, &request.name)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to update bank account")))?;
 

@@ -9,14 +9,15 @@ use sqlx::MySqlPool;
 use utoipa::OpenApi;
 use uuid::Uuid;
 
-use crate::{db, models::{CreatePayeeRequest, Payee}, AppError};
+use crate::{
+    db,
+    models::{CreatePayeeRequest, Payee},
+    AppError,
+};
 
 #[derive(OpenApi)]
-#[openapi(
-    paths(get_payees, create_payee),
-    components(schemas(Payee, CreatePayeeRequest))
-)]
-pub struct PayeesApi;
+#[openapi(paths(get, create), components(schemas(Payee, CreatePayeeRequest)))]
+pub struct Api;
 
 const API_TAG: &str = "Payees";
 
@@ -36,11 +37,11 @@ pub struct GetPayeesQuery {
     ),
     tag = API_TAG
 )]
-pub async fn get_payees(
+pub async fn get(
     State(db_pool): State<MySqlPool>,
     Query(query): Query<GetPayeesQuery>,
 ) -> Result<Json<Box<[Payee]>>, AppError> {
-    db::payees::get_payees(&db_pool, query.user_id)
+    db::payees::get(&db_pool, query.user_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get payees")))
@@ -55,7 +56,7 @@ pub async fn get_payees(
     request_body = CreatePayeeRequest,
     tag = API_TAG
 )]
-pub async fn create_payee(
+pub async fn create(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreatePayeeRequest>,
 ) -> Result<(StatusCode, Json<Uuid>), AppError> {
@@ -65,7 +66,7 @@ pub async fn create_payee(
 
     let id = Uuid::new_v4();
 
-    db::payees::create_payee(&db_pool, id, request)
+    db::payees::create(&db_pool, id, request)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create payee")))?;
 

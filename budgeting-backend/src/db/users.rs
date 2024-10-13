@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::models::{CreateUserRequest, User};
 
-use super::DbError;
+use super::Error;
 
 struct UserDbModel {
     id: String,
@@ -19,13 +19,13 @@ impl TryInto<User> for UserDbModel {
 
         Ok(User {
             email: self.email,
-            id: id,
+            id,
             name: self.name,
         })
     }
 }
 
-pub async fn get_users(db_pool: &MySqlPool) -> Result<Box<[User]>, DbError> {
+pub async fn get(db_pool: &MySqlPool) -> Result<Box<[User]>, Error> {
     let users = sqlx::query_as!(UserDbModel, "SELECT id, email, name FROM Users")
         .fetch_all(db_pool)
         .await?
@@ -36,7 +36,7 @@ pub async fn get_users(db_pool: &MySqlPool) -> Result<Box<[User]>, DbError> {
     Ok(users)
 }
 
-pub async fn get_user(db_pool: &MySqlPool, user_id: Uuid) -> Result<User, DbError> {
+pub async fn get_single(db_pool: &MySqlPool, user_id: Uuid) -> Result<User, Error> {
     sqlx::query_as!(
         UserDbModel,
         "SELECT id, name, email FROM Users WHERE id = ?",
@@ -45,10 +45,14 @@ pub async fn get_user(db_pool: &MySqlPool, user_id: Uuid) -> Result<User, DbErro
     .fetch_optional(db_pool)
     .await?
     .map(|u| u.try_into().unwrap())
-    .ok_or(DbError::NotFound)
+    .ok_or(Error::NotFound)
 }
 
-pub async fn create_user(db_pool: &MySqlPool, id: Uuid, request: CreateUserRequest) -> Result<(), DbError> {
+pub async fn create(
+    db_pool: &MySqlPool,
+    id: Uuid,
+    request: CreateUserRequest,
+) -> Result<(), Error> {
     sqlx::query!(
         "INSERT INTO Users(id, name, email) VALUE (?, ?, ?)",
         id.as_simple(),

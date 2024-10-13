@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::models::{CreatePayeeRequest, Payee};
 
-use super::DbError;
+use super::Error;
 
 struct PayeeModel {
     id: String,
@@ -23,7 +23,7 @@ impl TryFrom<PayeeModel> for Payee {
     }
 }
 
-pub async fn get_payees(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Payee]>, DbError> {
+pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Payee]>, Error> {
     let payees: Box<[Payee]> = sqlx::query_as!(
         PayeeModel,
         "SELECT id, name, user_id FROM Payees WHERE user_id = ?",
@@ -38,11 +38,11 @@ pub async fn get_payees(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Payee
     Ok(payees)
 }
 
-pub async fn create_payee(
+pub async fn create(
     db_pool: &MySqlPool,
     id: Uuid,
     request: CreatePayeeRequest,
-) -> Result<(), DbError> {
+) -> Result<(), Error> {
     sqlx::query!(
         "INSERT INTO Payees(id, name, user_id) VALUE (?, ?, ?)",
         id.as_simple(),
@@ -55,7 +55,7 @@ pub async fn create_payee(
     Ok(())
 }
 
-pub async fn get_payee(db_pool: &MySqlPool, id: Uuid) -> Result<Payee, DbError> {
+pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Payee, Error> {
     sqlx::query_as!(
         PayeeModel,
         "SELECT id, name, user_id FROM Payees WHERE id = ?",
@@ -63,6 +63,6 @@ pub async fn get_payee(db_pool: &MySqlPool, id: Uuid) -> Result<Payee, DbError> 
     )
     .fetch_optional(db_pool)
     .await?
-    .ok_or(DbError::NotFound)
+    .ok_or(Error::NotFound)
     .map(|p| p.try_into().unwrap())
 }

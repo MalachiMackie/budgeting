@@ -7,7 +7,7 @@ use rust_decimal_macros::dec;
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db::{self, DbError},
+    db::{self, Error},
     models::{
         Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
         CreateScheduleRequest, CreateUserRequest, RepeatingTargetType, Schedule, SchedulePeriod,
@@ -20,9 +20,9 @@ use uuid::Uuid;
 static USER_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
+    let user_id = *USER_ID.get_or_init(Uuid::new_v4);
 
-    db::users::create_user(
+    db::users::create(
         db_pool,
         user_id,
         CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -60,7 +60,7 @@ pub async fn test_create_budget(db_pool: MySqlPool) {
 
     let budget_id: Uuid = response.json();
 
-    let budget = db::budgets::get_budgets(&db_pool, user_id).await;
+    let budget = db::budgets::get(&db_pool, user_id).await;
     assert!(budget.is_ok());
 
     let budget = budget.unwrap();
@@ -77,7 +77,7 @@ pub async fn test_create_budget(db_pool: MySqlPool) {
         target: Some(BudgetTarget::Repeating {
             target_amount: Decimal::from_f32(1.1).unwrap(),
             repeating_type: RepeatingTargetType::RequireRepeating,
-            schedule: schedule,
+            schedule,
         }),
     };
 
@@ -96,7 +96,7 @@ pub async fn test_get_budgets(db_pool: MySqlPool) {
             every_x_periods: 1,
         },
     };
-    db::schedule::create_schedule(&db_pool, schedule.clone())
+    db::schedule::create(&db_pool, schedule.clone())
         .await
         .unwrap();
 
@@ -109,11 +109,11 @@ pub async fn test_get_budgets(db_pool: MySqlPool) {
         target: Some(BudgetTarget::Repeating {
             target_amount: Decimal::from_f32(1.1).unwrap(),
             repeating_type: RepeatingTargetType::BuildUpTo,
-            schedule: schedule,
+            schedule,
         }),
     };
 
-    db::budgets::create_budget(&db_pool, budget.clone())
+    db::budgets::create(&db_pool, budget.clone())
         .await
         .unwrap();
 
@@ -133,7 +133,7 @@ pub async fn delete_budget(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::budgets::create_budget(&db_pool, Budget::new(id, "name".into(), None, user_id))
+    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id))
         .await
         .unwrap();
 
@@ -143,9 +143,9 @@ pub async fn delete_budget(db_pool: MySqlPool) {
 
     response.assert_ok();
 
-    let find_response = db::budgets::get_budget(&db_pool, id).await;
+    let find_response = db::budgets::get_single(&db_pool, id).await;
 
-    assert!(matches!(dbg!(find_response), Err(DbError::NotFound)));
+    assert!(matches!(dbg!(find_response), Err(Error::NotFound)));
 }
 
 #[sqlx::test]
@@ -156,7 +156,7 @@ pub async fn update_budget(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::budgets::create_budget(&db_pool, Budget::new(id, "name".into(), None, user_id))
+    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id))
         .await
         .unwrap();
 
@@ -179,7 +179,7 @@ pub async fn update_budget(db_pool: MySqlPool) {
 
     response.assert_ok();
 
-    let mut find_response = db::budgets::get_budgets(&db_pool, user_id).await.unwrap()[0].clone();
+    let mut find_response = db::budgets::get(&db_pool, user_id).await.unwrap()[0].clone();
 
     if let Some(BudgetTarget::Repeating { schedule, .. }) = &mut find_response.target {
         schedule.id = Uuid::nil();

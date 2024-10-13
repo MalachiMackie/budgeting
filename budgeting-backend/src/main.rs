@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 use budgeting_backend::{build_swagger_ui, init_db, init_logger, new_app};
 
 #[tokio::main]

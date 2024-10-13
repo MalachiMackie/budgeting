@@ -9,17 +9,17 @@ use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DbError},
+    db::{self, Error},
     models::{CreateTransactionRequest, Transaction, UpdateTransactionRequest},
     AppError,
 };
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_transactions, create_transaction, update_transaction),
+    paths(get, create, update),
     components(schemas(Transaction, CreateTransactionRequest, UpdateTransactionRequest))
 )]
-pub struct TransactionApi;
+pub struct Api;
 
 const API_TAG: &str = "Transactions";
 
@@ -34,7 +34,7 @@ const API_TAG: &str = "Transactions";
     ),
     tag = API_TAG
 )]
-pub async fn get_transactions(
+pub async fn get(
     State(db_pool): State<MySqlPool>,
     Path(bank_account_id): Path<Uuid>,
 ) -> Result<Json<Box<[Transaction]>>, AppError> {
@@ -42,7 +42,7 @@ pub async fn get_transactions(
         return Err(AppError::BadRequest(anyhow!("Bank account id must be set")));
     }
 
-    db::transactions::get_transactions(&db_pool, bank_account_id)
+    db::transactions::get(&db_pool, bank_account_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Could not get transactions")))
@@ -60,7 +60,7 @@ pub async fn get_transactions(
     ),
     tag = API_TAG
 )]
-pub async fn create_transaction(
+pub async fn create(
     State(db_pool): State<MySqlPool>,
     Path(bank_account_id): Path<Uuid>,
     Json(request): Json<CreateTransactionRequest>,
@@ -75,11 +75,11 @@ pub async fn create_transaction(
 
     let id = Uuid::new_v4();
 
-    let payee_result = db::payees::get_payee(&db_pool, request.payee_id).await;
+    let payee_result = db::payees::get_single(&db_pool, request.payee_id).await;
 
     match payee_result {
         Ok(_) => (),
-        Err(DbError::NotFound) => {
+        Err(Error::NotFound) => {
             return Err(AppError::NotFound(anyhow::anyhow!(
                 "Payee not found with id {}",
                 request.payee_id
@@ -88,7 +88,7 @@ pub async fn create_transaction(
         Err(e) => return Err(e.to_app_error(anyhow!("Could not create transaction"))),
     }
 
-    db::transactions::create_transaction(&db_pool, id, bank_account_id, request)
+    db::transactions::create(&db_pool, id, bank_account_id, request)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Could not create transaction")))?;
 
@@ -107,16 +107,16 @@ pub async fn create_transaction(
         ("transactionId" = Uuid, Path,)
     ),
     tag = API_TAG)]
-pub async fn update_transaction(
+pub async fn update(
     State(db_pool): State<MySqlPool>,
     Path(transaction_id): Path<Uuid>,
     Json(request): Json<UpdateTransactionRequest>,
 ) -> Result<(), AppError> {
-    let transaction = db::transactions::get_transaction(&db_pool, transaction_id)
+    let transaction = db::transactions::get_single(&db_pool, transaction_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
 
-    db::transactions::update_transaction(
+    db::transactions::update(
         &db_pool,
         Transaction::new(
             transaction.id,

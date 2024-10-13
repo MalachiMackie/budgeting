@@ -9,9 +9,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 pub fn integration_test_init(db_pool: MySqlPool) -> TestServer {
     init_test_logger();
 
-    let server = TestServer::new(new_app(db_pool)).unwrap();
+    
 
-    server
+    TestServer::new(new_app(db_pool)).unwrap()
 }
 
 static INITIALIZE_LOGGER: Once = Once::new();

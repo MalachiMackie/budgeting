@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use anyhow::anyhow;
 use chrono::NaiveDate;
@@ -166,20 +166,20 @@ impl FromStr for RepeatingTargetType {
     }
 }
 
-impl ToString for RepeatingTargetType {
-    fn to_string(&self) -> String {
+impl Display for RepeatingTargetType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BuildUpTo => "BuildUpTo".into(),
-            Self::RequireRepeating => "RequireRepeating".into(),
+            Self::BuildUpTo => write!(f, "BuildUpTo"),
+            Self::RequireRepeating => write!(f, "RequireRepeating"),
         }
     }
 }
 
-impl ToString for BudgetTarget {
-    fn to_string(&self) -> String {
+impl Display for BudgetTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BudgetTarget::OneTime { .. } => "OneTime".into(),
-            BudgetTarget::Repeating { .. } => "Repeating".into(),
+            BudgetTarget::OneTime { .. } => write!(f, "OneTime"),
+            BudgetTarget::Repeating { .. } => write!(f, "Repeating"),
         }
     }
 }
@@ -242,25 +242,25 @@ impl FromStr for SchedulePeriodType {
     }
 }
 
-impl ToString for SchedulePeriodType {
-    fn to_string(&self) -> String {
+impl Display for SchedulePeriodType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SchedulePeriodType::Weekly => "Weekly".into(),
-            SchedulePeriodType::Fortnightly => "Fortnightly".into(),
-            SchedulePeriodType::Monthly => "Monthly".into(),
-            SchedulePeriodType::Yearly => "Yearly".into(),
+            SchedulePeriodType::Weekly => write!(f, "Weekly"),
+            SchedulePeriodType::Fortnightly => write!(f, "Fortnightly"),
+            SchedulePeriodType::Monthly => write!(f, "Monthly"),
+            SchedulePeriodType::Yearly => write!(f, "Yearly"),
         }
     }
 }
 
-impl ToString for SchedulePeriod {
-    fn to_string(&self) -> String {
+impl Display for SchedulePeriod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SchedulePeriod::Weekly { .. } => "Weekly".into(),
-            SchedulePeriod::Fortnightly { .. } => "Fortnightly".into(),
-            SchedulePeriod::Monthly { .. } => "Monthly".into(),
-            SchedulePeriod::Yearly { .. } => "Yearly".into(),
-            SchedulePeriod::Custom { .. } => "Custom".into(),
+            SchedulePeriod::Weekly { .. } => write!(f, "Weekly"),
+            SchedulePeriod::Fortnightly { .. } => write!(f, "Fortnightly"),
+            SchedulePeriod::Monthly { .. } => write!(f, "Monthly"),
+            SchedulePeriod::Yearly { .. } => write!(f, "Yearly"),
+            SchedulePeriod::Custom { .. } => write!(f, "Custom"),
         }
     }
 }
@@ -275,5 +275,5 @@ pub struct UpdateTransactionRequest {
 
 #[derive(Serialize, Deserialize, ToSchema, Constructor)]
 pub struct UpdateBankAccountRequest {
-    pub name: String
+    pub name: String,
 }

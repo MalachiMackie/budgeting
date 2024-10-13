@@ -3,7 +3,7 @@ mod common;
 use std::sync::OnceLock;
 
 use budgeting_backend::{
-    db::{self, DbError},
+    db::{self, Error},
     models::{
         Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
         CreateUserRequest, Transaction, UpdateTransactionRequest,
@@ -22,12 +22,12 @@ static PAYEE_ID: OnceLock<Uuid> = OnceLock::new();
 static BUDGET_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = *USER_ID.get_or_init(|| Uuid::new_v4());
-    let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(|| Uuid::new_v4());
-    let payee_id = *PAYEE_ID.get_or_init(|| Uuid::new_v4());
-    let budget_id = *BUDGET_ID.get_or_init(|| Uuid::new_v4());
+    let user_id = *USER_ID.get_or_init(Uuid::new_v4);
+    let bank_account_id = *BANK_ACCOUNT_ID.get_or_init(Uuid::new_v4);
+    let payee_id = *PAYEE_ID.get_or_init(Uuid::new_v4);
+    let budget_id = *BUDGET_ID.get_or_init(Uuid::new_v4);
 
-    db::users::create_user(
+    db::users::create(
         db_pool,
         user_id,
         CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -35,7 +35,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::payees::create_payee(
+    db::payees::create(
         db_pool,
         payee_id,
         CreatePayeeRequest::new("name".into(), user_id),
@@ -43,7 +43,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::bank_accounts::create_bank_account(
+    db::bank_accounts::create(
         db_pool,
         bank_account_id,
         CreateBankAccountRequest::new("name".into(), Decimal::from_i32(0).unwrap(), user_id),
@@ -51,7 +51,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::budgets::create_budget(
+    db::budgets::create(
         db_pool,
         Budget::new(budget_id, "Budget".into(), None, user_id),
     )
@@ -84,7 +84,7 @@ pub async fn create_transaction(db_pool: MySqlPool) {
     response.assert_created();
     let transaction_id: Uuid = response.json();
 
-    let transactions = db::transactions::get_transactions(&db_pool, bank_account_id)
+    let transactions = db::transactions::get(&db_pool, bank_account_id)
         .await
         .unwrap();
 
@@ -118,7 +118,7 @@ pub async fn get_transactions(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create_transaction(
+    db::transactions::create(
         &db_pool,
         transaction.id,
         bank_account_id,
@@ -155,14 +155,14 @@ pub async fn update_transaction(db_pool: MySqlPool) {
     let payee_id_2 = Uuid::new_v4();
     let budget_id_2 = Uuid::new_v4();
 
-    db::payees::create_payee(
+    db::payees::create(
         &db_pool,
         payee_id_2,
         CreatePayeeRequest::new("name".into(), user_id),
     )
     .await
     .unwrap();
-    db::budgets::create_budget(
+    db::budgets::create(
         &db_pool,
         Budget::new(budget_id_2, "name".into(), None, user_id),
     )
@@ -177,7 +177,7 @@ pub async fn update_transaction(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create_transaction(
+    db::transactions::create(
         &db_pool,
         transaction.id,
         bank_account_id,
@@ -224,7 +224,7 @@ pub async fn delete_transaction(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create_transaction(
+    db::transactions::create(
         &db_pool,
         transaction.id,
         bank_account_id,
@@ -243,9 +243,9 @@ pub async fn delete_transaction(db_pool: MySqlPool) {
     
     response.assert_ok();
     
-    let find_response = db::transactions::get_transaction(
+    let find_response = db::transactions::get_single(
         &db_pool,
         transaction.id).await;
     
-    assert!(matches!(find_response, Err(DbError::NotFound)));
+    assert!(matches!(find_response, Err(Error::NotFound)));
 }

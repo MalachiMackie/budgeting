@@ -8,13 +8,13 @@ pub mod transactions;
 pub mod users;
 
 #[derive(Debug)]
-pub enum DbError {
+pub enum Error {
     NotFound,
     MappingError { error: anyhow::Error },
     Unknown { error: anyhow::Error },
 }
 
-impl DbError {
+impl Error {
     pub fn to_app_error(self, error: anyhow::Error) -> AppError {
         match self {
             Self::NotFound => AppError::NotFound(error),
@@ -24,11 +24,11 @@ impl DbError {
     }
 }
 
-impl From<sqlx::Error> for DbError {
+impl From<sqlx::Error> for Error {
     fn from(value: sqlx::Error) -> Self {
         match value {
             sqlx::Error::RowNotFound => Self::NotFound,
-            err => DbError::Unknown { error: err.into() },
+            err => Error::Unknown { error: err.into() },
         }
     }
 }

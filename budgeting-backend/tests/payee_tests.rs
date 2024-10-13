@@ -12,9 +12,9 @@ use uuid::Uuid;
 static USER_ID: OnceLock<Uuid> = OnceLock::new();
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = USER_ID.get_or_init(|| Uuid::new_v4());
+    let user_id = USER_ID.get_or_init(Uuid::new_v4);
 
-    db::users::create_user(
+    db::users::create(
         db_pool,
         *user_id,
         CreateUserRequest::new("name".to_owned(), "someone@somewhere.com".to_owned()),
@@ -38,7 +38,7 @@ pub async fn create_payee(db_pool: MySqlPool) {
     response.assert_created();
     let payee_id: Uuid = response.json();
 
-    let found_payee = db::payees::get_payee(&db_pool, payee_id).await.unwrap();
+    let found_payee = db::payees::get_single(&db_pool, payee_id).await.unwrap();
 
     assert_eq!(
         found_payee,
@@ -54,7 +54,7 @@ pub async fn get_payees(db_pool: MySqlPool) {
     let payee_id = Uuid::new_v4();
     let user_id = *USER_ID.unwrap();
 
-    db::payees::create_payee(
+    db::payees::create(
         &db_pool,
         payee_id,
         CreatePayeeRequest::new("Name".to_owned(), user_id),

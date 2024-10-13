@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::models::{BankAccount, CreateBankAccountRequest};
 
-use super::DbError;
+use super::Error;
 
 struct BankAccountDbModel {
     id: String,
@@ -31,10 +31,10 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
     }
 }
 
-pub async fn get_bank_accounts(
+pub async fn get(
     db_pool: &MySqlPool,
     user_id: Uuid,
-) -> Result<Box<[BankAccount]>, DbError> {
+) -> Result<Box<[BankAccount]>, Error> {
     let bank_accounts: Vec<BankAccount> = sqlx::query_as!(
         BankAccountDbModel,
         r"
@@ -54,11 +54,11 @@ pub async fn get_bank_accounts(
     Ok(bank_accounts.into_boxed_slice())
 }
 
-pub async fn get_bank_account(
+pub async fn get_single(
     db_pool: &MySqlPool,
     account_id: Uuid,
     user_id: Uuid,
-) -> Result<BankAccount, DbError> {
+) -> Result<BankAccount, Error> {
     sqlx::query_as!(
         BankAccountDbModel,
         r"
@@ -74,14 +74,14 @@ pub async fn get_bank_account(
     .fetch_optional(db_pool)
     .await?
     .map(|account| account.try_into().unwrap())
-    .ok_or(DbError::NotFound)
+    .ok_or(Error::NotFound)
 }
 
-pub async fn create_bank_account(
+pub async fn create(
     db_pool: &MySqlPool,
     id: Uuid,
     request: CreateBankAccountRequest,
-) -> Result<(), DbError> {
+) -> Result<(), Error> {
     sqlx::query!(
         "INSERT INTO BankAccounts (id, name, user_id, initial_amount) VALUE(?, ?, ?, ?)",
         id.as_simple(),
@@ -95,7 +95,7 @@ pub async fn create_bank_account(
     Ok(())
 }
 
-pub async fn delete_bank_account(db_pool: &MySqlPool, account_id: Uuid) -> Result<(), DbError> {
+pub async fn delete(db_pool: &MySqlPool, account_id: Uuid) -> Result<(), Error> {
     sqlx::query!(
         "DELETE FROM BankAccounts WHERE id = ?",
         account_id.as_simple()
@@ -106,7 +106,7 @@ pub async fn delete_bank_account(db_pool: &MySqlPool, account_id: Uuid) -> Resul
     Ok(())
 }
 
-pub async fn update_bank_account(db_pool: &MySqlPool, id: Uuid, name: &str) -> Result<(), DbError> {
+pub async fn update(db_pool: &MySqlPool, id: Uuid, name: &str) -> Result<(), Error> {
     sqlx::query!(
         "UPDATE BankAccounts
     SET name = ?
@@ -129,7 +129,7 @@ mod tests {
 
     use crate::{
         db,
-        extensions::{decimal_extensions::DecimalExt, once_lock_extensions::OnceLockExt},
+        extensions::{decimal::DecimalExt, once_lock::OnceLockExt},
         models::{Budget, CreatePayeeRequest, CreateTransactionRequest, CreateUserRequest},
     };
 
@@ -146,7 +146,7 @@ mod tests {
         let budget_id = *BUDGET_ID.init_uuid();
         _ = BANK_ACCOUNT_ID.init_uuid();
 
-        db::users::create_user(
+        db::users::create(
             db_pool,
             user_id,
             CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -154,7 +154,7 @@ mod tests {
         .await
         .unwrap();
 
-        db::payees::create_payee(
+        db::payees::create(
             db_pool,
             payee_id,
             CreatePayeeRequest::new("name".into(), user_id),
@@ -162,7 +162,7 @@ mod tests {
         .await
         .unwrap();
 
-        db::budgets::create_budget(
+        db::budgets::create(
             db_pool,
             Budget::new(budget_id, "name".into(), None, user_id),
         )
@@ -177,7 +177,7 @@ mod tests {
         let bank_account_id = *BANK_ACCOUNT_ID.get().unwrap();
         let user_id = *USER_ID.get().unwrap();
 
-        let result = create_bank_account(
+        let result = create(
             &db_pool,
             bank_account_id,
             CreateBankAccountRequest::new("Account".into(), dec!(10.3), user_id),
@@ -191,7 +191,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let get_all = get_bank_accounts(&db_pool, user_id).await.unwrap();
+        let get_all = get(&db_pool, user_id).await.unwrap();
 
         assert_eq!(get_all.len(), 1);
         let mut get_all_single = get_all[0].clone();
@@ -206,7 +206,7 @@ mod tests {
         );
         assert!(get_all_single_balance.approximately_eq(expected_balance, dec!(0.001)));
 
-        let mut get_single = get_bank_account(&db_pool, bank_account_id, user_id)
+        let mut get_single = get_single(&db_pool, bank_account_id, user_id)
             .await
             .unwrap();
 
@@ -229,14 +229,14 @@ mod tests {
         let payee_id = *PAYEE_ID.get().unwrap();
         let budget_id = *BUDGET_ID.get().unwrap();
 
-        let result = create_bank_account(
+        let result = create(
             &db_pool,
             bank_account_id,
             CreateBankAccountRequest::new("Account".into(), dec!(10.3), user_id),
         )
         .await;
 
-        db::transactions::create_transaction(
+        db::transactions::create(
             &db_pool,
             Uuid::new_v4(),
             bank_account_id,
@@ -257,7 +257,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let get_all = get_bank_accounts(&db_pool, user_id).await.unwrap();
+        let get_all = get(&db_pool, user_id).await.unwrap();
 
         assert_eq!(get_all.len(), 1);
         let mut get_all_single = get_all[0].clone();
@@ -272,7 +272,7 @@ mod tests {
         );
         assert!(get_all_single_balance.approximately_eq(expected_balance, dec!(0.001)));
 
-        let mut get_single = get_bank_account(&db_pool, bank_account_id, user_id)
+        let mut get_single = get_single(&db_pool, bank_account_id, user_id)
             .await
             .unwrap();
 
@@ -293,7 +293,7 @@ mod tests {
         let user_id = *USER_ID.get().unwrap();
         let id = Uuid::new_v4();
 
-        create_bank_account(
+        create(
             &db_pool,
             id,
             CreateBankAccountRequest::new("name".into(), dec!(1), user_id),
@@ -301,11 +301,11 @@ mod tests {
         .await
         .unwrap();
 
-        delete_bank_account(&db_pool, id).await.unwrap();
+        delete(&db_pool, id).await.unwrap();
 
-        let get_result = get_bank_account(&db_pool, id, user_id).await;
+        let get_result = get_single(&db_pool, id, user_id).await;
 
-        assert!(matches!(get_result, Err(DbError::NotFound)));
+        assert!(matches!(get_result, Err(Error::NotFound)));
     }
 
     #[sqlx::test]
@@ -315,7 +315,7 @@ mod tests {
         let user_id = *USER_ID.get().unwrap();
         let id = Uuid::new_v4();
 
-        create_bank_account(
+        create(
             &db_pool,
             id,
             CreateBankAccountRequest::new("name".into(), dec!(1), user_id),
@@ -325,9 +325,9 @@ mod tests {
 
         let updated = BankAccount::new(id, "newName".into(), dec!(1), user_id, dec!(1));
 
-        update_bank_account(&db_pool, id, "newName").await.unwrap();
+        update(&db_pool, id, "newName").await.unwrap();
 
-        let get_result = get_bank_account(&db_pool, id, user_id).await.unwrap();
+        let get_result = get_single(&db_pool, id, user_id).await.unwrap();
 
         assert_eq!(get_result, updated);
     }

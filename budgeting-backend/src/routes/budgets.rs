@@ -10,7 +10,7 @@ use utoipa::OpenApi;
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DbError},
+    db::{self, Error},
     models::{
         Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, RepeatingTargetType,
         Schedule, SchedulePeriod, SchedulePeriodType, UpdateBudgetRequest,
@@ -21,7 +21,7 @@ use crate::{
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get_budgets, create_budget, update_budget),
+    paths(get, create, update),
     components(schemas(
         Budget,
         CreateBudgetRequest,
@@ -33,7 +33,7 @@ use crate::{
         SchedulePeriodType
     ))
 )]
-pub struct BudgetsApi;
+pub struct Api;
 
 const API_TAG: &str = "Budgets";
 
@@ -53,7 +53,7 @@ pub struct GetBudgetsQuery {
     ),
     tag = API_TAG
 )]
-pub async fn get_budgets(
+pub async fn get(
     State(db_pool): State<MySqlPool>,
     Query(query): Query<GetBudgetsQuery>,
 ) -> Result<Json<Box<[Budget]>>, AppError> {
@@ -61,7 +61,7 @@ pub async fn get_budgets(
         return Err(AppError::BadRequest(anyhow!("user_id must be set")));
     }
 
-    db::budgets::get_budgets(&db_pool, query.user_id)
+    db::budgets::get(&db_pool, query.user_id)
         .await
         .map(Json)
         .map_err(|e| e.to_app_error(anyhow!("Failed to get budgets")))
@@ -76,7 +76,7 @@ pub async fn get_budgets(
     request_body = CreateBudgetRequest,
     tag = API_TAG
 )]
-pub async fn create_budget(
+pub async fn create(
     State(db_pool): State<MySqlPool>,
     Json(request): Json<CreateBudgetRequest>,
 ) -> Result<(StatusCode, Json<Uuid>), AppError> {
@@ -89,10 +89,10 @@ pub async fn create_budget(
         return Err(AppError::BadRequest(anyhow!("Budget name cannot be empty")));
     }
 
-    let user_result = db::users::get_user(&db_pool, request.user_id).await;
+    let user_result = db::users::get_single(&db_pool, request.user_id).await;
     match user_result {
         Ok(_) => (),
-        Err(DbError::NotFound) => {
+        Err(Error::NotFound) => {
             return Err(AppError::NotFound(anyhow!(
                 "user with id {} was not found",
                 request.user_id
@@ -110,7 +110,7 @@ pub async fn create_budget(
                 period: schedule.period.clone(),
             };
 
-            db::schedule::create_schedule(&db_pool, schedule.clone())
+            db::schedule::create(&db_pool, schedule.clone())
                 .await
                 .map_err(|e| e.to_app_error(anyhow!("Failed to create budget")))?;
 
@@ -135,12 +135,12 @@ pub async fn create_budget(
                 repeating_type,
                 schedule: schedule.expect("checked by arm guard"),
             },
-            _ => unreachable!("We create schedule above if target is repeating"),
+            CreateBudgetTargetRequest::Repeating { .. } => unreachable!("We create schedule above if target is repeating"),
         }),
         user_id: request.user_id,
     };
 
-    db::budgets::create_budget(&db_pool, budget)
+    db::budgets::create(&db_pool, budget)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to create budget")))?;
 
@@ -156,12 +156,12 @@ pub async fn create_budget(
     request_body = UpdateBudgetRequest,
     tag = API_TAG
 )]
-pub async fn update_budget(
+pub async fn update(
     State(db_pool): State<MySqlPool>,
     Path(budget_id): Path<Uuid>,
     Json(request): Json<UpdateBudgetRequest>,
 ) -> Result<(), AppError> {
-    let existing_budget = db::budgets::get_budget(&db_pool, budget_id)
+    let existing_budget = db::budgets::get_single(&db_pool, budget_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to get budget")))?;
 
@@ -182,22 +182,20 @@ pub async fn update_budget(
                 id: existing_schedule.id,
                 period: update_schedule_request.period,
             };
-            db::schedule::update_schedule(&db_pool, updated_schedule.clone())
+            db::schedule::update(&db_pool, updated_schedule.clone())
                 .await
                 .map_err(|e| e.to_app_error(anyhow!("Failed to update schedule")))?;
 
             (Some(updated_schedule), None)
         }
         // delete schedule
-        (Some(BudgetTarget::Repeating { schedule, .. }), None)
-        | (
+        (
             Some(BudgetTarget::Repeating { schedule, .. }),
-            Some(UpdateBudgetTargetRequest::OneTime { .. }),
+            None | Some(UpdateBudgetTargetRequest::OneTime { .. }),
         ) => (None, Some(schedule.id)),
         // create schedule
-        (None, Some(UpdateBudgetTargetRequest::Repeating { schedule, .. }))
-        | (
-            Some(BudgetTarget::OneTime { .. }),
+        (
+            None | Some(BudgetTarget::OneTime { .. }),
             Some(UpdateBudgetTargetRequest::Repeating { schedule, .. }),
         ) => {
             let new_schedule_id = Uuid::new_v4();
@@ -207,7 +205,7 @@ pub async fn update_budget(
                 period: schedule.period,
             };
 
-            db::schedule::create_schedule(&db_pool, new_schedule.clone())
+            db::schedule::create(&db_pool, new_schedule.clone())
                 .await
                 .map_err(|e| e.to_app_error(anyhow!("Failed to create new schedule")))?;
 
@@ -233,12 +231,12 @@ pub async fn update_budget(
 
     let updated_budget = Budget::new(budget_id, request.name, target, request.user_id);
 
-    db::budgets::update_budget(&db_pool, updated_budget)
+    db::budgets::update(&db_pool, updated_budget)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to update budget")))?;
 
     if let Some(schedule_id_to_delete) = schedule_id_to_delete {
-        db::schedule::delete_schedule(&db_pool, schedule_id_to_delete)
+        db::schedule::delete(&db_pool, schedule_id_to_delete)
             .await
             .map_err(|e| e.to_app_error(anyhow!("Failed to delete schedule")))?;
     }
@@ -256,20 +254,20 @@ pub async fn update_budget(
         ("budget_id" = Uuid, Path,)
     ),
     tag = API_TAG)]
-pub async fn delete_budget(
+pub async fn delete(
     State(db_pool): State<MySqlPool>,
     Path(budget_id): Path<Uuid>,
 ) -> Result<(), AppError> {
-    let budget = db::budgets::get_budget(&db_pool, budget_id)
+    let budget = db::budgets::get_single(&db_pool, budget_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to get budget to delete")))?;
 
-    db::budgets::delete_budget(&db_pool, budget_id)
+    db::budgets::delete(&db_pool, budget_id)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to delete budget")))?;
 
     if let Some(BudgetTarget::Repeating { schedule, .. }) = budget.target {
-        db::schedule::delete_schedule(&db_pool, schedule.id)
+        db::schedule::delete(&db_pool, schedule.id)
             .await
             .map_err(|e| e.to_app_error(anyhow!("Failed to delete schedule")))?;
     }
@@ -308,7 +306,7 @@ mod tests {
 
             let user_id = *USER_ID;
 
-            db::users::create_user(
+            db::users::create(
                 db_pool,
                 user_id,
                 CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -356,22 +354,18 @@ mod tests {
                 })
                 .clone();
 
-            db::schedule::create_schedule(db_pool, schedule)
+            db::budgets::create(db_pool, no_target)
+                .await
+                .unwrap();
+            db::budgets::create(db_pool, onetime_target)
                 .await
                 .unwrap();
 
-            db::budgets::create_budget(db_pool, no_target)
-                .await
-                .unwrap();
-            db::budgets::create_budget(db_pool, onetime_target)
+            db::schedule::get_single(db_pool, schedule_id)
                 .await
                 .unwrap();
 
-            dbg!(db::schedule::get_schedule(db_pool, schedule_id)
-                .await
-                .unwrap());
-
-            db::budgets::create_budget(db_pool, repeating_target)
+            db::budgets::create(db_pool, repeating_target)
                 .await
                 .unwrap();
         }
@@ -383,7 +377,7 @@ mod tests {
             let budget = BUDGET_NO_TARGET.get().unwrap().clone();
             let user_id = *USER_ID;
 
-            update_budget(
+            update(
                 State(db_pool.clone()),
                 Path(budget.id),
                 Json(UpdateBudgetRequest {
@@ -402,7 +396,7 @@ mod tests {
                 user_id,
             };
 
-            let fetched = db::budgets::get_budget(&db_pool, budget.id).await.unwrap();
+            let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
 
             assert_eq!(fetched, expected);
         }
@@ -414,7 +408,7 @@ mod tests {
             let budget = BUDGET_ONETIME_TARGET.get().unwrap().clone();
             let user_id = *USER_ID;
 
-            update_budget(
+            update(
                 State(db_pool.clone()),
                 Path(budget.id),
                 Json(UpdateBudgetRequest {
@@ -434,7 +428,7 @@ mod tests {
             .await
             .unwrap();
 
-            let fetched = db::budgets::get_budget(&db_pool, budget.id).await.unwrap();
+            let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
 
             let Some(BudgetTarget::Repeating { schedule, .. }) = &fetched.target else {
                 panic!("Expected budget to be repeating");
@@ -461,7 +455,7 @@ mod tests {
             let budget = BUDGET_NO_TARGET.get().unwrap().clone();
             let user_id = *USER_ID;
 
-            update_budget(
+            update(
                 State(db_pool.clone()),
                 Path(budget.id),
                 Json(UpdateBudgetRequest {
@@ -481,7 +475,7 @@ mod tests {
             .await
             .unwrap();
 
-            let fetched = db::budgets::get_budget(&db_pool, budget.id).await.unwrap();
+            let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
 
             let Some(BudgetTarget::Repeating { schedule, .. }) = &fetched.target else {
                 panic!("Expected budget to be repeating");
@@ -508,7 +502,7 @@ mod tests {
             let budget = BUDGET_REPEATING_TARGET.get().unwrap().clone();
             let user_id = *USER_ID;
 
-            update_budget(
+            update(
                 State(db_pool.clone()),
                 Path(budget.id),
                 Json(UpdateBudgetRequest {
@@ -520,7 +514,7 @@ mod tests {
             .await
             .unwrap();
 
-            let fetched = db::budgets::get_budget(&db_pool, budget.id).await.unwrap();
+            let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
 
             let expected = Budget {
                 id: budget.id,
@@ -539,7 +533,7 @@ mod tests {
             let budget = BUDGET_REPEATING_TARGET.get().unwrap().clone();
             let user_id = *USER_ID;
 
-            update_budget(
+            update(
                 State(db_pool.clone()),
                 Path(budget.id),
                 Json(UpdateBudgetRequest {
@@ -553,7 +547,7 @@ mod tests {
             .await
             .unwrap();
 
-            let fetched = db::budgets::get_budget(&db_pool, budget.id).await.unwrap();
+            let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
 
             let expected = Budget {
                 id: budget.id,
@@ -580,7 +574,7 @@ mod tests {
         pub async fn delete_budget_should_delete_schedule(db_pool: MySqlPool) {
             let user_id = Uuid::new_v4();
 
-            db::users::create_user(
+            db::users::create(
                 &db_pool,
                 user_id,
                 CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -596,8 +590,10 @@ mod tests {
                     starting_on: NaiveDate::from_ymd_opt(2024, 10, 13).unwrap(),
                 },
             };
-            
-            db::schedule::create_schedule(&db_pool, schedule.clone()).await.unwrap();
+
+            db::schedule::create(&db_pool, schedule.clone())
+                .await
+                .unwrap();
 
             let budget_id = Uuid::new_v4();
 
@@ -612,25 +608,25 @@ mod tests {
                 user_id,
             };
 
-            db::budgets::create_budget(&db_pool, budget).await.unwrap();
+            db::budgets::create(&db_pool, budget).await.unwrap();
 
-            delete_budget(State(db_pool.clone()), Path(budget_id))
+            delete(State(db_pool.clone()), Path(budget_id))
                 .await
                 .unwrap();
 
-            let fetch_result = db::budgets::get_budget(&db_pool, budget_id).await;
+            let fetch_result = db::budgets::get_single(&db_pool, budget_id).await;
 
-            assert!(matches!(fetch_result, Err(DbError::NotFound)));
+            assert!(matches!(fetch_result, Err(Error::NotFound)));
 
-            let fetch_schedule_result = db::schedule::get_schedule(&db_pool, schedule_id).await;
-            assert!(matches!(fetch_schedule_result, Err(DbError::NotFound)));
+            let fetch_schedule_result = db::schedule::get_single(&db_pool, schedule_id).await;
+            assert!(matches!(fetch_schedule_result, Err(Error::NotFound)));
         }
 
         #[sqlx::test]
         pub async fn delete_budget_should_succeed_when_no_schedule(db_pool: MySqlPool) {
             let user_id = Uuid::new_v4();
 
-            db::users::create_user(
+            db::users::create(
                 &db_pool,
                 user_id,
                 CreateUserRequest::new("name".into(), "email@email.com".into()),
@@ -647,15 +643,15 @@ mod tests {
                 user_id,
             };
 
-            db::budgets::create_budget(&db_pool, budget).await.unwrap();
+            db::budgets::create(&db_pool, budget).await.unwrap();
 
-            delete_budget(State(db_pool.clone()), Path(budget_id))
+            delete(State(db_pool.clone()), Path(budget_id))
                 .await
                 .unwrap();
 
-            let fetch_result = db::budgets::get_budget(&db_pool, budget_id).await;
+            let fetch_result = db::budgets::get_single(&db_pool, budget_id).await;
 
-            assert!(matches!(fetch_result, Err(DbError::NotFound)));
+            assert!(matches!(fetch_result, Err(Error::NotFound)));
         }
     }
 }
