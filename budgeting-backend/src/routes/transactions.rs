@@ -16,7 +16,7 @@ use crate::{
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, create, update),
+    paths(get, create, update, delete),
     components(schemas(Transaction, CreateTransactionRequest, UpdateTransactionRequest))
 )]
 pub struct Api;
@@ -129,6 +129,28 @@ pub async fn update(
     )
     .await
     .map_err(|e| e.to_app_error(anyhow!("Failed to update transaction")))?;
+
+    Ok(())
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/transactions/{transactionId}",
+    responses(
+        (status = OK, description = "Success",)
+    ),
+    params(
+        ("transactionId" = Uuid, Path,)
+    ),
+    tag = API_TAG
+)]
+pub async fn delete(
+    State(db_pool): State<MySqlPool>,
+    Path(transaction_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    db::transactions::delete(&db_pool, transaction_id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to delete transaction")))?;
 
     Ok(())
 }

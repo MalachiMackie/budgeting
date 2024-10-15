@@ -229,7 +229,7 @@ pub async fn update(
         },
     });
 
-    let updated_budget = Budget::new(budget_id, request.name, target, request.user_id);
+    let updated_budget = Budget::new(budget_id, request.name, target, existing_budget.user_id);
 
     db::budgets::update(&db_pool, updated_budget)
         .await
@@ -361,7 +361,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            db::schedule::get_single(db_pool, schedule_id)
+            db::schedule::create(db_pool, schedule)
                 .await
                 .unwrap();
 
@@ -383,7 +383,6 @@ mod tests {
                 Json(UpdateBudgetRequest {
                     name: "newName".into(),
                     target: None,
-                    user_id,
                 }),
             )
             .await
@@ -422,7 +421,6 @@ mod tests {
                             },
                         },
                     }),
-                    user_id,
                 }),
             )
             .await
@@ -469,7 +467,6 @@ mod tests {
                             },
                         },
                     }),
-                    user_id,
                 }),
             )
             .await
@@ -508,7 +505,6 @@ mod tests {
                 Json(UpdateBudgetRequest {
                     name: "newName".into(),
                     target: None,
-                    user_id,
                 }),
             )
             .await
@@ -541,7 +537,6 @@ mod tests {
                     target: Some(UpdateBudgetTargetRequest::OneTime {
                         target_amount: dec!(1.2),
                     }),
-                    user_id,
                 }),
             )
             .await

@@ -173,7 +173,6 @@ pub async fn update_budget(db_pool: MySqlPool) {
                     },
                 },
             }),
-            user_id,
         ))
         .await;
 

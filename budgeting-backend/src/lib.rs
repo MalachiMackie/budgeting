@@ -54,7 +54,7 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
         )
         .route(
             "/api/transactions/:transactionId",
-            put(transactions::update),
+            put(transactions::update).delete(transactions::delete),
         )
         .route("/api/budgets", get(budgets::get).post(budgets::create))
         .route(

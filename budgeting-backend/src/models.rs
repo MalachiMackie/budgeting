@@ -89,7 +89,6 @@ pub struct CreateBudgetRequest {
 pub struct UpdateBudgetRequest {
     pub name: String,
     pub target: Option<UpdateBudgetTargetRequest>,
-    pub user_id: Uuid,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
