@@ -125,6 +125,13 @@ export const BudgetingApi = {
 
     return json as string;
   },
+  async updateBudget(id: string, request: UpdateBudgetRequest): Promise<void> {
+    await fetch(`http://localhost:3000/api/budgets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(request),
+      headers: JsonContentTypeHeaders,
+    });
+  },
 };
 
 export type BudgetingApi = typeof BudgetingApi;
@@ -186,6 +193,23 @@ export type CreateBudgetRequest = {
   target: CreateBudgetTargetRequest | null;
   user_id: string;
 };
+
+export type UpdateBudgetRequest = {
+  name: string;
+  target: UpdateBudgetTargetRequest | null;
+};
+
+export type UpdateBudgetTargetRequest =
+  | { OneTime: { target_amount: number } }
+  | {
+      Repeating: {
+        target_amount: number;
+        repeating_type: BudgetRepeatingType;
+        schedule: UpdateScheduleRequest;
+      };
+    };
+
+export type UpdateScheduleRequest = CreateScheduleRequest;
 
 export type BudgetTarget =
   | { OneTime: { target_amount: number } }
