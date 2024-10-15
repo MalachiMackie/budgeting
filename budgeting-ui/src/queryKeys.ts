@@ -10,6 +10,7 @@ export const queryKeys = {
     fetchSingle: (bankAccountId: string) => ["bank-accounts", bankAccountId],
     create: ["create-bank-account"],
     delete: (bankAccountId: string) => ["delete-bank-account", bankAccountId],
+    edit: (bankAccountId: string) => ["edit-bank-account", bankAccountId],
   },
   payees: {
     create: ["create-payee"],

@@ -1,5 +1,5 @@
 import { Button, Flex, Title } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconTrash } from "@tabler/icons-react";
 import {
   QueryClient,
   queryOptions,
@@ -12,6 +12,7 @@ import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { DeleteAccountModal } from "../views/DeleteAccountModal";
+import { EditBankAccountModal } from "../views/EditBankAccountModal";
 import { TransactionList } from "../views/TransactionList";
 
 export function AccountPage(): JSX.Element {
@@ -21,6 +22,7 @@ export function AccountPage(): JSX.Element {
   const navigate = useNavigate();
 
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
 
   const { data: bankAccount } = useSuspenseQuery(
     createQueryOptions(api, params.accountId!, userId)
@@ -32,15 +34,16 @@ export function AccountPage(): JSX.Element {
 
   return (
     <>
-      <Flex>
+      <Flex justify={"space-between"}>
         <Title>{bankAccount.name} - Transactions</Title>
-        <Button
-          color="red"
-          ml={"auto"}
-          onClick={() => setShowDeleteAccount(true)}
-        >
-          <IconTrash />
-        </Button>
+        <Flex gap={"xs"}>
+          <Button onClick={() => setShowEditAccount(true)}>
+            <IconPencil />
+          </Button>
+          <Button color="red" onClick={() => setShowDeleteAccount(true)}>
+            <IconTrash />
+          </Button>
+        </Flex>
       </Flex>
       <span>
         Balance: {Math.sign(bankAccount.balance) === -1 && "-"}$
@@ -52,6 +55,13 @@ export function AccountPage(): JSX.Element {
           bankAccount={bankAccount}
           onCancel={() => setShowDeleteAccount(false)}
           onDelete={handleAccountDeleted}
+        />
+      )}
+      {showEditAccount && (
+        <EditBankAccountModal
+          bankAccount={bankAccount}
+          onCancel={() => setShowEditAccount(false)}
+          onSuccess={() => setShowEditAccount(false)}
         />
       )}
     </>

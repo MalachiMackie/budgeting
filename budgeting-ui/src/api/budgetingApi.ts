@@ -89,10 +89,30 @@ export const BudgetingApi = {
     let json = await result.json();
     return json as string;
   },
-  async deleteBankAccount(bankAccountId: string, userId: string): Promise<void> {
-    await fetch(`http://localhost:3000/api/bank-accounts/${bankAccountId}?user_id=${userId}`, {
-      method: "DELETE",
-    });
+  async updateBankAccount(
+    bankAccountId: string,
+    userId: string,
+    request: UpdateBankAccountRequest
+  ): Promise<void> {
+    await fetch(
+      `http://localhost:3000/api/bank-accounts/${bankAccountId}?user_id=${userId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(request),
+        headers: JsonContentTypeHeaders,
+      }
+    );
+  },
+  async deleteBankAccount(
+    bankAccountId: string,
+    userId: string
+  ): Promise<void> {
+    await fetch(
+      `http://localhost:3000/api/bank-accounts/${bankAccountId}?user_id=${userId}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
   async createBudget(request: CreateBudgetRequest): Promise<string> {
     let result = await fetch(`http://localhost:3000/api/budgets`, {
@@ -212,4 +232,12 @@ export type SchedulePeriodType =
 export type CreatePayeeRequest = {
   name: string;
   user_id: string;
+};
+
+export type UpdateBankAccountRequest = {
+  name: string;
+};
+
+const JsonContentTypeHeaders = {
+  "Content-Type": "application/json",
 };
