@@ -19,6 +19,7 @@ import { UserIdContext, useUserId } from "./hooks/useUserId";
 import { AccountPage, createAccountLoader } from "./routes/AccountPage";
 import { AccountsPage, createAccountsLoader } from "./routes/AccountsPage";
 import { BudgetsPage, createBudgetsLoader } from "./routes/BudgetsPage";
+import { createPayeesLoader, PayeesPage } from "./routes/PayeesPage";
 import { createRootLoader, Root } from "./routes/Root";
 
 export const BudgetingApiContext = createContext<BudgetingApi>(null!);
@@ -89,6 +90,11 @@ export function BudgetingRouterWrapper() {
           element: <BudgetsPage />,
           loader: createBudgetsLoader(api, queryClient, userId),
         },
+        {
+          path: "/payees",
+          element: <PayeesPage />,
+          loader: createPayeesLoader(api, queryClient, userId)
+        }
       ],
     },
   ] satisfies MaybeHasLoader[]);

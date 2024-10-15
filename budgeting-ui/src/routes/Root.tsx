@@ -1,5 +1,6 @@
 import {
   IconHome,
+  IconMan,
   IconMoneybag,
   IconPlus,
   IconUsersGroup,
@@ -81,6 +82,13 @@ export function Root(): JSX.Element {
                 icon: IconPlus,
               },
             ],
+          },
+          {
+            type: "link",
+            id: "payees",
+            label: "Payees",
+            link: "/payees",
+            icon: IconMan,
           },
         ]}
       />
