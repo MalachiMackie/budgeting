@@ -1,5 +1,5 @@
 mod common;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use budgeting_backend::{
     db,
@@ -9,14 +9,14 @@ use common::*;
 use sqlx::MySqlPool;
 use uuid::Uuid;
 
-static USER_ID: OnceLock<Uuid> = OnceLock::new();
+static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
 async fn test_init(db_pool: &MySqlPool) {
-    let user_id = USER_ID.get_or_init(Uuid::new_v4);
+    let user_id = *USER_ID;
 
     db::users::create(
         db_pool,
-        *user_id,
+        user_id,
         CreateUserRequest::new("name".to_owned(), "someone@somewhere.com".to_owned()),
     )
     .await
@@ -28,7 +28,7 @@ pub async fn create_payee(db_pool: MySqlPool) {
     let test_server = integration_test_init(db_pool.clone());
     test_init(&db_pool).await;
 
-    let user_id = *USER_ID.unwrap();
+    let user_id = *USER_ID;
 
     let response = test_server
         .post("/api/payees")
@@ -52,7 +52,7 @@ pub async fn get_payees(db_pool: MySqlPool) {
     test_init(&db_pool).await;
 
     let payee_id = Uuid::new_v4();
-    let user_id = *USER_ID.unwrap();
+    let user_id = *USER_ID;
 
     db::payees::create(
         &db_pool,
@@ -76,7 +76,7 @@ pub async fn update_payee(db_pool: MySqlPool) {
     test_init(&db_pool).await;
 
     let payee_id = Uuid::new_v4();
-    let user_id = *USER_ID.unwrap();
+    let user_id = *USER_ID;
 
     db::payees::create(
         &db_pool,
@@ -96,4 +96,29 @@ pub async fn update_payee(db_pool: MySqlPool) {
     let fetched = db::payees::get_single(&db_pool, payee_id).await.unwrap();
 
     assert_eq!(fetched.name, "NewName");
+}
+
+#[sqlx::test]
+pub async fn delete_payee(db_pool: MySqlPool) {
+    let test_server = integration_test_init(db_pool.clone());
+    test_init(&db_pool).await;
+
+    let id = Uuid::new_v4();
+    let user_id = *USER_ID;
+
+    db::payees::create(
+        &db_pool,
+        id,
+        CreatePayeeRequest::new("name".into(), user_id),
+    )
+    .await
+    .unwrap();
+
+    let response = test_server.delete(&format!("/api/payees/{id}")).await;
+
+    response.assert_ok();
+
+    let fetched = db::payees::get_single(&db_pool, id).await;
+
+    assert!(matches!(fetched, Err(db::Error::NotFound)));
 }

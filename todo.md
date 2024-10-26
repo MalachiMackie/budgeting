@@ -1,10 +1,11 @@
 - Crud items
     - Update payee - BE Done
-    - Delete payee
+    - Delete payee - BE Done
     - Delete transaction - BE Done
     - Delete budget - BE Done
 - Save pay period
 - Budget assignment
+- Budget groups? ability to switch budgets like ynab
 - fix nav scrolling
 - Better transaction flow
     - Tab
