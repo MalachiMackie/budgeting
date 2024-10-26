@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use http::StatusCode;
@@ -11,12 +11,12 @@ use uuid::Uuid;
 
 use crate::{
     db,
-    models::{CreatePayeeRequest, Payee},
+    models::{CreatePayeeRequest, Payee, UpdatePayeeRequest},
     AppError,
 };
 
 #[derive(OpenApi)]
-#[openapi(paths(get, create), components(schemas(Payee, CreatePayeeRequest)))]
+#[openapi(paths(get, create, update), components(schemas(Payee, CreatePayeeRequest, UpdatePayeeRequest)))]
 pub struct Api;
 
 const API_TAG: &str = "Payees";
@@ -71,4 +71,33 @@ pub async fn create(
         .map_err(|e| e.to_app_error(anyhow!("Could not create payee")))?;
 
     Ok((StatusCode::CREATED, Json(id)))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/payees/{payeeId}",
+    responses(
+        (status = OK, description = "Success")
+    ),
+    params(
+        ("payeeId" = Uuid, Path,),
+    ),
+    tag = API_TAG
+)]
+pub async fn update(
+    State(db_pool): State<MySqlPool>,
+    Path(id): Path<Uuid>,
+    Json(request): Json<UpdatePayeeRequest>,
+) -> Result<(), AppError> {
+    let mut payee = db::payees::get_single(&db_pool, id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Could not fetch payee to update")))?;
+
+    payee.name = request.name;
+
+    db::payees::update(&db_pool, payee)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update payee")))?;
+
+    Ok(())
 }

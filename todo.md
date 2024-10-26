@@ -1,5 +1,5 @@
 - Crud items
-    - Update payee
+    - Update payee - BE Done
     - Delete payee
     - Delete transaction - BE Done
     - Delete budget - BE Done

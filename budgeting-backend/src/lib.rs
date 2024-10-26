@@ -36,6 +36,7 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
 
     Router::new()
         .route("/api/payees", get(payees::get).post(payees::create))
+        .route("/api/payees/:payeeId", put(payees::update))
         .route("/api/users", get(users::get).post(users::create))
         .route("/api/users/:userId", get(users::get_single))
         .route(

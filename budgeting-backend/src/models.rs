@@ -276,3 +276,8 @@ pub struct UpdateTransactionRequest {
 pub struct UpdateBankAccountRequest {
     pub name: String,
 }
+
+#[derive(Serialize, Deserialize, ToSchema, Constructor)]
+pub struct UpdatePayeeRequest {
+    pub name: String,
+}
