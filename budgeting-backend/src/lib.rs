@@ -102,13 +102,19 @@ fn build_cors() -> CorsLayer {
 #[openapi()]
 struct ApiDoc;
 
-pub fn build_swagger_ui() -> SwaggerUi {
+pub fn build_swagger_doc() -> utoipa::openapi::OpenApi {
     let mut openapi = ApiDoc::openapi();
     openapi.merge(payees::Api::openapi());
     openapi.merge(transactions::Api::openapi());
     openapi.merge(bank_accounts::Api::openapi());
     openapi.merge(users::Api::openapi());
     openapi.merge(budgets::Api::openapi());
+
+    openapi
+}
+
+pub fn build_swagger_ui() -> SwaggerUi {
+    let openapi = build_swagger_doc();
 
     SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi)
 }
