@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
-import { BudgetingApi } from "../api/budgetingApi";
+import { Client } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
 import { useUserId } from "../hooks/useUserId";
@@ -59,7 +59,7 @@ export function Root(): JSX.Element {
                 link: "/accounts",
                 icon: IconUsersGroup,
               },
-              ...bankAccounts.map(
+              ...bankAccounts.data.map(
                 (x) =>
                   ({
                     type: "link",
@@ -107,7 +107,7 @@ export function Root(): JSX.Element {
   );
 }
 
-function createQueryOptions(api: BudgetingApi, userId: string) {
+function createQueryOptions(api: Client, userId: string) {
   return queryOptions({
     queryKey: queryKeys.bankAccounts.fetch,
     queryFn: () => api.getBankAccounts(userId),
@@ -115,7 +115,7 @@ function createQueryOptions(api: BudgetingApi, userId: string) {
 }
 
 export function createRootLoader(
-  api: BudgetingApi,
+  api: Client,
   queryClient: QueryClient,
   userId: string
 ) {

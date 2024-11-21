@@ -1,5 +1,5 @@
 import { Checkbox, Table } from "@mantine/core";
-import { Budget } from "../api/budgetingApi";
+import { Budget } from "../api/client";
 
 export type BudgetListProps = {
   budgets: Budget[];

@@ -1,6 +1,6 @@
 import { Table } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { BankAccount } from "../api/budgetingApi";
+import { BankAccount } from "../api/client";
 
 export function BankAccountList({
   bankAccounts,

@@ -2,7 +2,7 @@ import { Button, Checkbox, NumberInput, Select, Table } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Budget, Payee, Transaction } from "../api/budgetingApi";
+import { Budget, Payee, Transaction } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 import { formatDate } from "../utils/formatDate";
@@ -41,12 +41,18 @@ export function TransactionRow({
   const saveTransaction = useMutation({
     mutationKey: queryKeys.transactions.edit(transaction.id),
     mutationFn: () => {
-      return api.updateTransaction(transaction.id, {
-        amount: amountEdit,
-        budget_id: budgetIdEdit,
-        payee_id: payeeIdEdit,
-        date: formatDate(dateEdit),
-      });
+      return api.updateTransaction(
+        {
+          transactionId: transaction.id,
+          bankAccountId: transaction.bank_account_id,
+        },
+        {
+          amount: amountEdit,
+          budget_id: budgetIdEdit,
+          payee_id: payeeIdEdit,
+          date: formatDate(dateEdit),
+        }
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({

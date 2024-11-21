@@ -31,7 +31,8 @@ const API_TAG: &str = "Users";
         (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreateUserRequest,
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "createUser"
 )]
 pub async fn create(
     State(db_pool): State<MySqlPool>,
@@ -63,7 +64,8 @@ pub async fn create(
     responses(
         (status = OK, description = "Success", body = Box<[User]>, content_type = "application/json")
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getUsers"
 )]
 pub async fn get(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[User]>>, AppError> {
     db::users::get(&db_pool)
@@ -81,7 +83,8 @@ pub async fn get(State(db_pool): State<MySqlPool>) -> Result<Json<Box<[User]>>, 
     params(
         ("userId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getUser"
 )]
 pub async fn get_single(
     State(db_pool): State<MySqlPool>,

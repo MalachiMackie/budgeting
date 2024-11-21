@@ -6,6 +6,7 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
+import OpenAPIClientAxios, { Document } from "openapi-client-axios";
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   createBrowserRouter,
@@ -14,7 +15,8 @@ import {
   RouterProvider,
   useRouteError,
 } from "react-router-dom";
-import { BudgetingApi } from "./api/budgetingApi";
+import apiDefinition from "../../api-doc.json";
+import { Client } from "./api/client";
 import { UserIdContext, useUserId } from "./hooks/useUserId";
 import { AccountPage, createAccountLoader } from "./routes/AccountPage";
 import { AccountsPage, createAccountsLoader } from "./routes/AccountsPage";
@@ -22,42 +24,62 @@ import { BudgetsPage, createBudgetsLoader } from "./routes/BudgetsPage";
 import { createPayeesLoader, PayeesPage } from "./routes/PayeesPage";
 import { createRootLoader, Root } from "./routes/Root";
 
-export const BudgetingApiContext = createContext<BudgetingApi>(null!);
+export const BudgetingApiContext = createContext<Client>(null!);
 
-export function useBudgetingApi(): BudgetingApi {
+export function useBudgetingApi(): Client {
   return useContext(BudgetingApiContext);
 }
 
 const queryClient = new QueryClient();
 
+const apiClient = new OpenAPIClientAxios({
+  definition: {
+    ...apiDefinition,
+    servers: [{ url: "http://localhost:3000" }],
+  } as unknown as Document,
+});
+
 function App() {
-  let [user, setUser] = useState<string | null>(null);
-  let budgetingApi = BudgetingApi;
+  const [user, setUser] = useState<string | null>(null);
+  // store api in an object so that the setApi doesn't think we're trying to do a prev callback
+  const [{ client: api }, setApi] = useState<{ client: Client | null }>({
+    client: null,
+  });
+
+  useEffect(() => {
+    apiClient.getClient<Client>().then((x) => {
+      setApi({ client: x });
+    });
+  }, []);
 
   // for now, just load the first user
   useEffect(() => {
+    if (!api) {
+      return;
+    }
     let load = async () => {
-      let users = await budgetingApi.getUsers();
-      if (users.length == 0) {
+      let users = await api.getUsers();
+      if (users.data.length == 0) {
         throw new Error("No users!");
       }
-      setUser(users[0].id);
+      setUser(users.data[0].id);
     };
-
     void load();
-  }, []);
+  }, [api]);
 
   return (
     <MantineProvider defaultColorScheme="dark">
-      <BudgetingApiContext.Provider value={budgetingApi}>
-        <QueryClientProvider client={queryClient}>
-          {user !== null && (
-            <UserIdContext.Provider value={{ userId: user }}>
-              <BudgetingRouterWrapper />
-            </UserIdContext.Provider>
-          )}
-        </QueryClientProvider>
-      </BudgetingApiContext.Provider>
+      {api && (
+        <BudgetingApiContext.Provider value={api}>
+          <QueryClientProvider client={queryClient}>
+            {user !== null && (
+              <UserIdContext.Provider value={{ userId: user }}>
+                <BudgetingRouterWrapper />
+              </UserIdContext.Provider>
+            )}
+          </QueryClientProvider>
+        </BudgetingApiContext.Provider>
+      )}
     </MantineProvider>
   );
 }
@@ -93,8 +115,8 @@ export function BudgetingRouterWrapper() {
         {
           path: "/payees",
           element: <PayeesPage />,
-          loader: createPayeesLoader(api, queryClient, userId)
-        }
+          loader: createPayeesLoader(api, queryClient, userId),
+        },
       ],
     },
   ] satisfies MaybeHasLoader[]);

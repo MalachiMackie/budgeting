@@ -7,7 +7,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
-import { SchedulePeriodType } from "../api/budgetingApi";
+import { SchedulePeriodType } from "../api/client";
 
 export type BudgetFormValue = {
   name: string;

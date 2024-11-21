@@ -5,7 +5,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useState } from "react";
-import { BudgetingApi } from "../api/budgetingApi";
+import { Client } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -16,7 +16,9 @@ import { EditBudgetModal } from "../views/EditBudgetModal";
 export function BudgetsPage(): JSX.Element {
   const api = useBudgetingApi();
   const userId = useUserId();
-  const { data: budgets } = useSuspenseQuery(createQueryOptions(api, userId));
+  const {
+    data: { data: budgets },
+  } = useSuspenseQuery(createQueryOptions(api, userId));
 
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [showCreateBudget, setShowCreateBudget] = useState(false);
@@ -60,15 +62,15 @@ export function BudgetsPage(): JSX.Element {
   );
 }
 
-function createQueryOptions(api: BudgetingApi, userId: string) {
+function createQueryOptions(api: Client, userId: string) {
   return queryOptions({
     queryKey: queryKeys.budgets.fetch,
-    queryFn: () => api.getBudgets(userId),
+    queryFn: () => api.getBudgets({ user_id: userId }),
   });
 }
 
 export function createBudgetsLoader(
-  api: BudgetingApi,
+  api: Client,
   queryClient: QueryClient,
   userId: string
 ) {

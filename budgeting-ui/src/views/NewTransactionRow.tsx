@@ -7,7 +7,7 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useState } from "react";
-import { Budget, CreateTransactionRequest, Payee } from "../api/budgetingApi";
+import { Budget, CreateTransactionRequest, Payee } from "../api/client";
 import { formatDate } from "../utils/formatDate";
 import { CreateBudgetModal } from "./CreateBudgetModal";
 import { CreatePayeeModal } from "./CreatePayeeModal";
@@ -20,7 +20,7 @@ export function NewTransactionRow({
 }: {
   payees: Payee[];
   budgets: Budget[];
-  save: (x: CreateTransactionRequest) => Promise<string>;
+  save: (x: CreateTransactionRequest) => Promise<unknown>;
 }): JSX.Element {
   // todo: show loading
   const [date, setDate] = useState(new Date());

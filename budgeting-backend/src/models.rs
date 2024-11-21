@@ -92,6 +92,7 @@ pub struct UpdateBudgetRequest {
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type")]
 pub enum CreateBudgetTargetRequest {
     OneTime {
         #[schema(value_type = f32)]
@@ -108,6 +109,7 @@ pub enum CreateBudgetTargetRequest {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[serde(tag = "type")]
 pub enum UpdateBudgetTargetRequest {
     OneTime {
         #[schema(value_type = f32)]
@@ -132,6 +134,7 @@ pub struct Budget {
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, ToSchema)]
+#[serde(tag = "type")]
 pub enum BudgetTarget {
     OneTime {
         #[schema(value_type = f32)]
@@ -200,6 +203,7 @@ pub struct UpdateScheduleRequest {
 }
 
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[serde(tag = "type")]
 pub enum SchedulePeriod {
     Weekly {
         starting_on: NaiveDate,
@@ -266,6 +270,8 @@ impl Display for SchedulePeriod {
 
 #[derive(Serialize, Deserialize, ToSchema, Constructor)]
 pub struct UpdateTransactionRequest {
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub payee_id: Uuid,
     pub budget_id: Uuid,

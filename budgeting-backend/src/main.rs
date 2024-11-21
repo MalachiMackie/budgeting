@@ -23,7 +23,7 @@ async fn main() {
 async fn gen_swagger(path_str: &str) -> Result<(), anyhow::Error> {
     let api_doc = build_swagger_doc();
 
-    let json = api_doc.to_json()?;
+    let json = api_doc.to_pretty_json()?;
 
     if path_str.is_empty() {
         bail!("path cannot be empty");

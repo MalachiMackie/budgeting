@@ -24,11 +24,14 @@ export function CreateBankAccountModal({
   const create = useMutation({
     mutationKey: queryKeys.bankAccounts.create,
     mutationFn: () =>
-      api.createBankAccount({
-        initial_amount: initialBalance,
-        name: name,
-        user_id: userId,
-      }),
+      api.createBankAccount(
+        {},
+        {
+          initial_amount: initialBalance,
+          name: name,
+          user_id: userId,
+        }
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.bankAccounts.fetch,

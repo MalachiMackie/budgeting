@@ -1,5 +1,5 @@
 import { Table } from "@mantine/core";
-import { Payee } from "../api/budgetingApi";
+import { Payee } from "../api/client";
 
 export type PayeesListProps = { payees: Payee[] };
 

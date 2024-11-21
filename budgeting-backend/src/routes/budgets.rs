@@ -12,9 +12,9 @@ use uuid::Uuid;
 use crate::{
     db::{self, Error},
     models::{
-        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, RepeatingTargetType,
-        Schedule, SchedulePeriod, SchedulePeriodType, UpdateBudgetRequest,
-        UpdateBudgetTargetRequest,
+        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
+        CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType,
+        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
     },
     AppError,
 };
@@ -30,7 +30,11 @@ use crate::{
         Schedule,
         SchedulePeriod,
         RepeatingTargetType,
-        SchedulePeriodType
+        SchedulePeriodType,
+        CreateBudgetTargetRequest,
+        UpdateBudgetTargetRequest,
+        CreateScheduleRequest,
+        UpdateScheduleRequest
     ))
 )]
 pub struct Api;
@@ -51,7 +55,8 @@ pub struct GetBudgetsQuery {
     params(
         ("user_id" = Uuid, Query,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getBudgets"
 )]
 pub async fn get(
     State(db_pool): State<MySqlPool>,
@@ -74,7 +79,8 @@ pub async fn get(
         (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreateBudgetRequest,
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "createBudget"
 )]
 pub async fn create(
     State(db_pool): State<MySqlPool>,
@@ -135,7 +141,9 @@ pub async fn create(
                 repeating_type,
                 schedule: schedule.expect("checked by arm guard"),
             },
-            CreateBudgetTargetRequest::Repeating { .. } => unreachable!("We create schedule above if target is repeating"),
+            CreateBudgetTargetRequest::Repeating { .. } => {
+                unreachable!("We create schedule above if target is repeating")
+            }
         }),
         user_id: request.user_id,
     };
@@ -154,7 +162,8 @@ pub async fn create(
         (status = OK, description = "Success")
     ),
     request_body = UpdateBudgetRequest,
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "updateBudget"
 )]
 pub async fn update(
     State(db_pool): State<MySqlPool>,
@@ -253,7 +262,9 @@ pub async fn update(
     params(
         ("budget_id" = Uuid, Path,)
     ),
-    tag = API_TAG)]
+    tag = API_TAG,
+    operation_id = "deleteBudget"
+)]
 pub async fn delete(
     State(db_pool): State<MySqlPool>,
     Path(budget_id): Path<Uuid>,
@@ -354,16 +365,10 @@ mod tests {
                 })
                 .clone();
 
-            db::budgets::create(db_pool, no_target)
-                .await
-                .unwrap();
-            db::budgets::create(db_pool, onetime_target)
-                .await
-                .unwrap();
+            db::budgets::create(db_pool, no_target).await.unwrap();
+            db::budgets::create(db_pool, onetime_target).await.unwrap();
 
-            db::schedule::create(db_pool, schedule)
-                .await
-                .unwrap();
+            db::schedule::create(db_pool, schedule).await.unwrap();
 
             db::budgets::create(db_pool, repeating_target)
                 .await

@@ -18,7 +18,7 @@ use crate::{
 #[derive(OpenApi)]
 #[openapi(
     paths(get, get_single, create, delete, update),
-    components(schemas(BankAccount, CreateBankAccountRequest))
+    components(schemas(BankAccount, CreateBankAccountRequest, UpdateBankAccountRequest))
 )]
 pub struct Api;
 
@@ -30,8 +30,9 @@ const API_TAG: &str = "BankAccounts";
     responses(
         (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
-    request_body = CreateBankAccountRequest,
-    tag = API_TAG
+    request_body(content_type = "application/json", content = CreateBankAccountRequest),
+    tag = API_TAG,
+    operation_id = "createBankAccount"
 )]
 pub async fn create(
     State(db_pool): State<MySqlPool>,
@@ -68,7 +69,8 @@ pub struct GetBankAccountsQuery {
     params(
         ("user_id" = Uuid, Query,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getBankAccounts"
 )]
 pub async fn get(
     Query(query): Query<GetBankAccountsQuery>,
@@ -106,7 +108,8 @@ pub struct UpdateBankAccountQuery {
         ("user_id" = Uuid, Query,),
         ("accountId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getBankAccount"
 )]
 pub async fn get_single(
     Query(query): Query<GetBankAccountQuery>,
@@ -130,7 +133,7 @@ pub async fn get_single(
 
 #[utoipa::path(
     delete,
-    path = "/api/bank-accounts/:accountId",
+    path = "/api/bank-accounts/{accountId}",
     responses(
         (status = OK, description = "Success",)
     ),
@@ -138,7 +141,8 @@ pub async fn get_single(
         ("user_id" = Uuid, Query,),
         ("accountId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "deleteBankAccount"
 )]
 pub async fn delete(
     State(db_pool): State<MySqlPool>,
@@ -158,7 +162,7 @@ pub async fn delete(
 
 #[utoipa::path(
     put,
-    path = "/api/bank-accounts/:accountId",
+    path = "/api/bank-accounts/{accountId}",
     responses(
         (status = OK, description = "Success",)
     ),
@@ -166,7 +170,8 @@ pub async fn delete(
         ("user_id" = Uuid, Query,),
         ("accountId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "updateBankAccount"
 )]
 pub async fn update(
     State(db_pool): State<MySqlPool>,

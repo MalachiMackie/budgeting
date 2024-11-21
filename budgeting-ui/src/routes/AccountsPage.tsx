@@ -4,7 +4,7 @@ import {
   queryOptions,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { BudgetingApi } from "../api/budgetingApi";
+import { Client } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -14,9 +14,9 @@ export function AccountsPage(): JSX.Element {
   const api = useBudgetingApi();
   const userId = useUserId();
 
-  const { data: bankAccounts } = useSuspenseQuery(
-    createQueryOptions(api, userId)
-  );
+  const {
+    data: { data: bankAccounts },
+  } = useSuspenseQuery(createQueryOptions(api, userId));
 
   return (
     <div>
@@ -26,15 +26,15 @@ export function AccountsPage(): JSX.Element {
   );
 }
 
-function createQueryOptions(api: BudgetingApi, userId: string) {
+function createQueryOptions(api: Client, userId: string) {
   return queryOptions({
     queryKey: queryKeys.bankAccounts.fetch,
-    queryFn: () => api.getBankAccounts(userId),
+    queryFn: () => api.getBankAccounts({ user_id: userId }),
   });
 }
 
 export function createAccountsLoader(
-  api: BudgetingApi,
+  api: Client,
   queryClient: QueryClient,
   userId: string
 ) {

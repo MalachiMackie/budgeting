@@ -1,7 +1,7 @@
 import { Button, Flex, Modal, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { BankAccount } from "../api/budgetingApi";
+import { BankAccount } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -26,7 +26,10 @@ export function EditBankAccountModal({
   const saveBankAccount = useMutation({
     mutationKey: queryKeys.bankAccounts.edit(bankAccount.id),
     mutationFn: () =>
-      api.updateBankAccount(bankAccount.id, userId, { name: accountName }),
+      api.updateBankAccount(
+        { accountId: bankAccount.id, user_id: userId },
+        { name: accountName }
+      ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({

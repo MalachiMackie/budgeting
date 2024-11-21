@@ -4,7 +4,7 @@ import {
   queryOptions,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { BudgetingApi } from "../api/budgetingApi";
+import { Client } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -14,7 +14,9 @@ export function PayeesPage(): JSX.Element {
   const api = useBudgetingApi();
   const userId = useUserId();
 
-  const { data: payees } = useSuspenseQuery(createQueryOptions(api, userId));
+  const {
+    data: { data: payees },
+  } = useSuspenseQuery(createQueryOptions(api, userId));
 
   return (
     <div>
@@ -24,15 +26,15 @@ export function PayeesPage(): JSX.Element {
   );
 }
 
-function createQueryOptions(api: BudgetingApi, userId: string) {
+function createQueryOptions(api: Client, userId: string) {
   return queryOptions({
     queryKey: queryKeys.payees.fetch(userId),
-    queryFn: () => api.getPayees(userId),
+    queryFn: () => api.getPayees({ user_id: userId }),
   });
 }
 
 export function createPayeesLoader(
-  api: BudgetingApi,
+  api: Client,
   queryClient: QueryClient,
   userId: string
 ) {

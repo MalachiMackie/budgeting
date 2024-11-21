@@ -1,7 +1,7 @@
 import { Button, Flex, Modal, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Payee } from "../api/budgetingApi";
+import { Payee } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -25,15 +25,18 @@ export function CreatePayeeModal({
   const createPayee = useMutation({
     mutationKey: queryKeys.payees.create,
     mutationFn: () =>
-      api.createPayee({
-        user_id: userId,
-        name: trimmed,
-      }),
+      api.createPayee(
+        {},
+        {
+          user_id: userId,
+          name: trimmed,
+        }
+      ),
     onSuccess: (payeeId) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.payees.fetch(userId),
       });
-      onSuccess({ name: trimmed, id: payeeId });
+      onSuccess({ name: trimmed, id: payeeId.data, user_id: userId });
     },
   });
 

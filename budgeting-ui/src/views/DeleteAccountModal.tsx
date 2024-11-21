@@ -1,6 +1,6 @@
 import { Button, Flex, Modal } from "@mantine/core";
 import { useMutation } from "@tanstack/react-query";
-import { BankAccount } from "../api/budgetingApi";
+import { BankAccount } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -22,7 +22,7 @@ export function DeleteAccountModal({
   const deleteAccount = useMutation({
     mutationKey: queryKeys.bankAccounts.delete(id),
     mutationFn: async () => {
-      await api.deleteBankAccount(id, userId);
+      await api.deleteBankAccount({ accountId: id, user_id: userId });
     },
     onSuccess: async () => {
       onDelete();

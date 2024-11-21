@@ -32,7 +32,8 @@ const API_TAG: &str = "Transactions";
     params(
         ("bankAccountId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getTransactions"
 )]
 pub async fn get(
     State(db_pool): State<MySqlPool>,
@@ -58,7 +59,8 @@ pub async fn get(
     params(
         ("bankAccountId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "createTransaction"
 )]
 pub async fn create(
     State(db_pool): State<MySqlPool>,
@@ -106,7 +108,9 @@ pub async fn create(
         ("bankAccountId" = Uuid, Path,),
         ("transactionId" = Uuid, Path,)
     ),
-    tag = API_TAG)]
+    tag = API_TAG,
+    operation_id = "updateTransaction"
+)]
 pub async fn update(
     State(db_pool): State<MySqlPool>,
     Path(transaction_id): Path<Uuid>,
@@ -142,7 +146,8 @@ pub async fn update(
     params(
         ("transactionId" = Uuid, Path,)
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "deleteTransaction"
 )]
 pub async fn delete(
     State(db_pool): State<MySqlPool>,

@@ -6,7 +6,7 @@ import {
   SchedulePeriod,
   UpdateBudgetRequest,
   UpdateBudgetTargetRequest,
-} from "../api/budgetingApi";
+} from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 import { formatDate } from "../utils/formatDate";
@@ -70,42 +70,37 @@ function createFormValue(budget: Budget): BudgetFormValue {
     hasTarget: budget.target !== null,
   };
 
-  if (budget.target === null) {
+  if (!budget.target) {
     return formValue;
   }
 
-  formValue.targetType = "OneTime" in budget.target ? "OneTime" : "Repeating";
+  formValue.targetType = budget.target?.type;
 
-  if ("OneTime" in budget.target) {
-    formValue.targetAmountStr = budget.target.OneTime.target_amount.toFixed(2);
+  if (budget.target.type === "OneTime") {
+    formValue.targetAmountStr = budget.target.target_amount.toFixed(2);
     return formValue;
   }
-  const schedule = budget.target.Repeating.schedule;
+  const schedule = budget.target.schedule;
 
-  formValue.targetAmountStr = budget.target.Repeating.target_amount.toFixed(2);
-  formValue.budgetRepeatingType = budget.target.Repeating.repeating_type;
+  formValue.targetAmountStr = budget.target.target_amount.toFixed(2);
+  formValue.budgetRepeatingType = budget.target.repeating_type;
 
-  if ("Weekly" in schedule.period) {
+  if (schedule.period.type === "Weekly") {
     formValue.schedulePeriodType = "Weekly";
-    formValue.scheduleStartingOn = new Date(schedule.period.Weekly.starting_on);
-  } else if ("Fortnightly" in schedule.period) {
+    formValue.scheduleStartingOn = new Date(schedule.period.starting_on);
+  } else if (schedule.period.type === "Fortnightly") {
     formValue.schedulePeriodType = "Fortnightly";
-    formValue.scheduleStartingOn = new Date(
-      schedule.period.Fortnightly.starting_on
-    );
-  } else if ("Monthly" in schedule.period) {
+    formValue.scheduleStartingOn = new Date(schedule.period.starting_on);
+  } else if (schedule.period.type === "Monthly") {
     formValue.schedulePeriodType = "Monthly";
-    formValue.scheduleStartingOn = new Date(
-      schedule.period.Monthly.starting_on
-    );
-  } else if ("Yearly" in schedule.period) {
+    formValue.scheduleStartingOn = new Date(schedule.period.starting_on);
+  } else if (schedule.period.type === "Yearly") {
     formValue.schedulePeriodType = "Yearly";
-    formValue.scheduleStartingOn = new Date(schedule.period.Yearly.starting_on);
+    formValue.scheduleStartingOn = new Date(schedule.period.starting_on);
   } else {
     formValue.schedulePeriodType = "Custom";
-    formValue.customSchedulePeriodType = schedule.period.Custom.period;
-    formValue.customSchedulePeriodTimes =
-      schedule.period.Custom.every_x_periods;
+    formValue.customSchedulePeriodType = schedule.period.period;
+    formValue.customSchedulePeriodTimes = schedule.period.every_x_periods;
   }
 
   return formValue;
@@ -120,16 +115,15 @@ function buildUpdateTargetRequest({
   scheduleStartingOn,
   targetAmountStr,
   targetType,
-}: BudgetFormValue): UpdateBudgetTargetRequest | null {
+}: BudgetFormValue): UpdateBudgetTargetRequest | undefined {
   if (!hasTarget) {
-    return null;
+    return undefined;
   }
 
   if (targetType === "OneTime") {
     return {
-      OneTime: {
-        target_amount: parseFloat(targetAmountStr),
-      },
+      type: "OneTime",
+      target_amount: parseFloat(targetAmountStr),
     };
   }
 
@@ -139,34 +133,32 @@ function buildUpdateTargetRequest({
 
   switch (schedulePeriodType) {
     case "Weekly":
-      schedulePeriod = { Weekly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Weekly", starting_on: startingOnStr };
       break;
     case "Fortnightly":
-      schedulePeriod = { Fortnightly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Fortnightly", starting_on: startingOnStr };
       break;
     case "Monthly":
-      schedulePeriod = { Monthly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Monthly", starting_on: startingOnStr };
       break;
     case "Yearly":
-      schedulePeriod = { Yearly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Yearly", starting_on: startingOnStr };
       break;
     case "Custom":
       schedulePeriod = {
-        Custom: {
-          every_x_periods: customSchedulePeriodTimes,
-          period: customSchedulePeriodType,
-        },
+        type: "Custom",
+        every_x_periods: customSchedulePeriodTimes,
+        period: customSchedulePeriodType,
       };
       break;
   }
 
   return {
-    Repeating: {
-      target_amount: parseFloat(targetAmountStr),
-      repeating_type: budgetRepeatingType,
-      schedule: {
-        period: schedulePeriod,
-      },
+    type: "Repeating",
+    target_amount: parseFloat(targetAmountStr),
+    repeating_type: budgetRepeatingType,
+    schedule: {
+      period: schedulePeriod,
     },
   };
 }

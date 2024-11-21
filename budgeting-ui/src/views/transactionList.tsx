@@ -1,7 +1,7 @@
 import { Table } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { CreateTransactionRequest, Transaction } from "../api/budgetingApi";
+import { CreateTransactionRequest, Transaction } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 import { NewTransactionRow } from "./NewTransactionRow";
@@ -38,7 +38,7 @@ export function TransactionList({
   const createTransaction = useMutation({
     mutationKey: queryKeys.transactions.create,
     mutationFn: (request: CreateTransactionRequest) =>
-      budgetingApi.createTransaction(request, bankAccountId),
+      budgetingApi.createTransaction({ bankAccountId }, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.transactions.fetch(bankAccountId),
@@ -56,8 +56,8 @@ export function TransactionList({
     return <>Failed to load things</>;
   }
 
-  let payeesMap = new Map(payees.map((x) => [x.id, x]));
-  let budgetsMap = new Map(budgets.map((x) => [x.id, x]));
+  let payeesMap = new Map(payees.data.map((x) => [x.id, x]));
+  let budgetsMap = new Map(budgets.data.map((x) => [x.id, x]));
 
   const compareTransactions = (a: Transaction, b: Transaction): number => {
     // todo: within the same day, compare by amount
@@ -81,10 +81,10 @@ export function TransactionList({
         <Table.Tbody>
           <NewTransactionRow
             save={createTransaction.mutateAsync}
-            payees={payees}
-            budgets={budgets}
+            payees={payees.data}
+            budgets={budgets.data}
           />
-          {[...transactions].sort(compareTransactions).map((x) => (
+          {[...transactions.data].sort(compareTransactions).map((x) => (
             <TransactionRow
               selected={selectedRows.has(x.id)}
               onRowSelected={() => {
@@ -117,7 +117,7 @@ export function TransactionList({
               bankAccountId={bankAccountId}
             />
           ))}
-          {transactions.length === 0 && (
+          {transactions.data.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={3}>No transactions</Table.Td>
             </Table.Tr>

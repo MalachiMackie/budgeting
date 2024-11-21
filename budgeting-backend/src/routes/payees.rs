@@ -16,7 +16,10 @@ use crate::{
 };
 
 #[derive(OpenApi)]
-#[openapi(paths(get, create, update, delete), components(schemas(Payee, CreatePayeeRequest, UpdatePayeeRequest)))]
+#[openapi(
+    paths(get, create, update, delete),
+    components(schemas(Payee, CreatePayeeRequest, UpdatePayeeRequest))
+)]
 pub struct Api;
 
 const API_TAG: &str = "Payees";
@@ -35,7 +38,8 @@ pub struct GetPayeesQuery {
     params(
         ("user_id" = Uuid, Query,),
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "getPayees"
 )]
 pub async fn get(
     State(db_pool): State<MySqlPool>,
@@ -54,7 +58,8 @@ pub async fn get(
         (status = CREATED, description = "Success", body = Uuid, content_type = "application/json")
     ),
     request_body = CreatePayeeRequest,
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "createPayee"
 )]
 pub async fn create(
     State(db_pool): State<MySqlPool>,
@@ -82,7 +87,8 @@ pub async fn create(
     params(
         ("payeeId" = Uuid, Path,),
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "updatePayee"
 )]
 pub async fn update(
     State(db_pool): State<MySqlPool>,
@@ -111,18 +117,21 @@ pub async fn update(
     params(
         ("payeeId" = Uuid, Path,),
     ),
-    tag = API_TAG
+    tag = API_TAG,
+    operation_id = "deletePayee"
 )]
 pub async fn delete(
     State(db_pool): State<MySqlPool>,
-    Path(id): Path<Uuid>
+    Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     // fetch to ensure payee exists
-    db::payees::get_single(&db_pool, id).await
+    db::payees::get_single(&db_pool, id)
+        .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to get payee")))?;
-    
-    db::payees::delete(&db_pool, id).await
+
+    db::payees::delete(&db_pool, id)
+        .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to delete payee")))?;
-    
+
     Ok(())
 }

@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { Params, useNavigate, useParams } from "react-router-dom";
-import { BudgetingApi } from "../api/budgetingApi";
+import { Client } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
@@ -24,9 +24,9 @@ export function AccountPage(): JSX.Element {
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
 
-  const { data: bankAccount } = useSuspenseQuery(
-    createQueryOptions(api, params.accountId!, userId)
-  );
+  const {
+    data: { data: bankAccount },
+  } = useSuspenseQuery(createQueryOptions(api, params.accountId!, userId));
 
   const handleAccountDeleted = () => {
     navigate("/accounts");
@@ -68,19 +68,15 @@ export function AccountPage(): JSX.Element {
   );
 }
 
-function createQueryOptions(
-  api: BudgetingApi,
-  accountId: string,
-  userId: string
-) {
+function createQueryOptions(api: Client, accountId: string, userId: string) {
   return queryOptions({
     queryKey: queryKeys.bankAccounts.fetchSingle(accountId),
-    queryFn: () => api.getBankAccount(accountId, userId),
+    queryFn: () => api.getBankAccount({ accountId, user_id: userId }),
   });
 }
 
 export function createAccountLoader(
-  api: BudgetingApi,
+  api: Client,
   queryClient: QueryClient,
   userId: string
 ) {

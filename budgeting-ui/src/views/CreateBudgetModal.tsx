@@ -5,12 +5,16 @@ import {
   CreateBudgetRequest,
   CreateBudgetTargetRequest,
   SchedulePeriod,
-} from "../api/budgetingApi";
+} from "../api/client";
 import { useBudgetingApi } from "../App";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { formatDate } from "../utils/formatDate";
-import { BudgetForm, BudgetFormValue, defaultBudgetFormValue } from "./BudgetForm";
+import {
+  BudgetForm,
+  BudgetFormValue,
+  defaultBudgetFormValue,
+} from "./BudgetForm";
 
 type CreateBudgetModalProps = {
   onCancel: () => void;
@@ -21,7 +25,9 @@ export function CreateBudgetModal({
   onCancel,
   onSuccess,
 }: CreateBudgetModalProps): JSX.Element {
-  const [formValue, setFormValue] = useState<BudgetFormValue>(defaultBudgetFormValue());
+  const [formValue, setFormValue] = useState<BudgetFormValue>(
+    defaultBudgetFormValue()
+  );
 
   const api = useBudgetingApi();
   const userId = useUserId();
@@ -38,12 +44,12 @@ export function CreateBudgetModal({
 
   const createBudget = useMutation({
     mutationKey: queryKeys.budgets.create,
-    mutationFn: () => api.createBudget(request),
+    mutationFn: () => api.createBudget({}, request),
     onSuccess: async (budgetId) => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.budgets.fetch,
       });
-      onSuccess(budgetId);
+      onSuccess(budgetId.data);
     },
   });
 
@@ -71,16 +77,15 @@ function buildCreateTargetRequest({
   scheduleStartingOn,
   targetAmountStr,
   targetType,
-}: BudgetFormValue): CreateBudgetTargetRequest | null {
+}: BudgetFormValue): CreateBudgetTargetRequest | undefined {
   if (!hasTarget) {
-    return null;
+    return undefined;
   }
 
   if (targetType === "OneTime") {
     return {
-      OneTime: {
-        target_amount: parseFloat(targetAmountStr),
-      },
+      type: "OneTime",
+      target_amount: parseFloat(targetAmountStr),
     };
   }
 
@@ -90,34 +95,32 @@ function buildCreateTargetRequest({
 
   switch (schedulePeriodType) {
     case "Weekly":
-      schedulePeriod = { Weekly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Weekly", starting_on: startingOnStr };
       break;
     case "Fortnightly":
-      schedulePeriod = { Fortnightly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Fortnightly", starting_on: startingOnStr };
       break;
     case "Monthly":
-      schedulePeriod = { Monthly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Monthly", starting_on: startingOnStr };
       break;
     case "Yearly":
-      schedulePeriod = { Yearly: { starting_on: startingOnStr } };
+      schedulePeriod = { type: "Yearly", starting_on: startingOnStr };
       break;
     case "Custom":
       schedulePeriod = {
-        Custom: {
-          every_x_periods: customSchedulePeriodTimes,
-          period: customSchedulePeriodType,
-        },
+        type: "Custom",
+        every_x_periods: customSchedulePeriodTimes,
+        period: customSchedulePeriodType,
       };
       break;
   }
 
   return {
-    Repeating: {
-      target_amount: parseFloat(targetAmountStr),
-      repeating_type: budgetRepeatingType,
-      schedule: {
-        period: schedulePeriod,
-      },
+    type: "Repeating",
+    target_amount: parseFloat(targetAmountStr),
+    repeating_type: budgetRepeatingType,
+    schedule: {
+      period: schedulePeriod,
     },
   };
 }
@@ -127,44 +130,29 @@ function validate(request: CreateBudgetRequest): boolean {
     return false;
   }
 
-  return request.target === null || validateTarget(request.target);
+  return request.target === undefined || validateTarget(request.target);
 }
 
 function validateTarget(request: CreateBudgetTargetRequest): boolean {
-  if ("OneTime" in request) {
-    return request.OneTime.target_amount > 0;
+  if (request.type === "OneTime") {
+    return request.target_amount > 0;
   }
 
-  if (request.Repeating.target_amount <= 0) {
+  if (request.target_amount <= 0) {
     return false;
   }
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const period = request.Repeating.schedule.period;
+  const period = request.schedule.period;
 
-  if ("Weekly" in period) {
-    if (new Date(period.Weekly.starting_on) < now) {
-      return false;
-    }
-  }
-  if ("Fortnightly" in period) {
-    if (new Date(period.Fortnightly.starting_on) < now) {
-      return false;
-    }
-  }
-  if ("Monthly" in period) {
-    if (new Date(period.Monthly.starting_on) < now) {
-      return false;
-    }
-  }
-  if ("Yearly" in period) {
-    if (new Date(period.Yearly.starting_on) < now) {
+  if (period.type !== "Custom") {
+    if (new Date(period.starting_on) < now) {
       return false;
     }
   }
 
-  if ("Custom" in period) {
-    return period.Custom.every_x_periods >= 1;
+  if (period.type === "Custom") {
+    return period.every_x_periods >= 1;
   }
 
   return true;
