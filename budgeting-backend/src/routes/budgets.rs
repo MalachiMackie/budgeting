@@ -21,7 +21,7 @@ use crate::{
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, create, update),
+    paths(get, create, update, delete),
     components(schemas(
         Budget,
         CreateBudgetRequest,

@@ -4,6 +4,7 @@ export const queryKeys = {
   budgets: {
     fetch: ["budgets"],
     create: ["create-budget"],
+    delete: ["delete-budget"],
     edit: (budgetId: string) => ["edit-budget", budgetId],
   },
   bankAccounts: {
@@ -15,6 +16,8 @@ export const queryKeys = {
   },
   payees: {
     create: ["create-payee"],
+    delete: ["delete-payee"],
+    edit: (payeeId: string) => ["edit-payee", payeeId],
     fetch: (userId: string) => ["payees", userId],
   },
   transactions: {

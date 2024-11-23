@@ -354,6 +354,28 @@
             "description": "Success"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Budgets"
+        ],
+        "operationId": "deleteBudget",
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
       }
     },
     "/api/payees": {

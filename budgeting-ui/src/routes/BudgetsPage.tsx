@@ -11,6 +11,7 @@ import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
 import { BudgetList } from "../views/BudgetList";
 import { CreateBudgetModal } from "../views/CreateBudgetModal";
+import { DeleteBudgetModal } from "../views/DeleteBudgetModal";
 import { EditBudgetModal } from "../views/EditBudgetModal";
 
 export function BudgetsPage(): JSX.Element {
@@ -23,6 +24,7 @@ export function BudgetsPage(): JSX.Element {
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [showCreateBudget, setShowCreateBudget] = useState(false);
   const [showUpdateBudget, setShowUpdateBudget] = useState(false);
+  const [showDeleteBudget, setShowDeleteBudget] = useState(false);
 
   return (
     <div>
@@ -36,6 +38,12 @@ export function BudgetsPage(): JSX.Element {
           disabled={!selectedBudgetId}
         >
           Update Budget
+        </Button>
+        <Button
+          onClick={() => setShowDeleteBudget(true)}
+          disabled={!selectedBudgetId}
+        >
+          Delete Budget
         </Button>
       </Flex>
       <BudgetList
@@ -56,6 +64,16 @@ export function BudgetsPage(): JSX.Element {
           budget={budgets.find((x) => x.id === selectedBudgetId)!}
           onCancel={() => setShowUpdateBudget(false)}
           onSuccess={() => setShowUpdateBudget(false)}
+        />
+      )}
+      {showDeleteBudget && (
+        <DeleteBudgetModal
+          budget={budgets.find((x) => x.id === selectedBudgetId)!}
+          onCancel={() => setShowDeleteBudget(false)}
+          onSuccess={() => {
+            setSelectedBudgetId(null);
+            setShowDeleteBudget(false);
+          }}
         />
       )}
     </div>

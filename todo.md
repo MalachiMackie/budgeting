@@ -1,7 +1,3 @@
-- Crud items
-    - Update payee - BE Done
-    - Delete payee - BE Done
-    - Delete budget - BE Done
 - Save pay period
 - Budget assignment
 - Budget groups? ability to switch budgets like ynab

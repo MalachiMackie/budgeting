@@ -214,6 +214,18 @@ declare namespace Paths {
             }
         }
     }
+    namespace DeleteBudget {
+        namespace Parameters {
+            export type BudgetId = string; // uuid
+        }
+        export interface PathParameters {
+            budget_id: Parameters.BudgetId /* uuid */;
+        }
+        namespace Responses {
+            export interface $200 {
+            }
+        }
+    }
     namespace DeletePayee {
         namespace Parameters {
             export type PayeeId = string; // uuid
@@ -455,6 +467,14 @@ export interface OperationMethods {
     config?: AxiosRequestConfig  
   ): OperationResponse<Paths.UpdateBudget.Responses.$200>
   /**
+   * deleteBudget
+   */
+  'deleteBudget'(
+    parameters?: Parameters<Paths.DeleteBudget.PathParameters> | null,
+    data?: any,
+    config?: AxiosRequestConfig  
+  ): OperationResponse<Paths.DeleteBudget.Responses.$200>
+  /**
    * getPayees
    */
   'getPayees'(
@@ -618,6 +638,14 @@ export interface PathsDictionary {
       data?: Paths.UpdateBudget.RequestBody,
       config?: AxiosRequestConfig  
     ): OperationResponse<Paths.UpdateBudget.Responses.$200>
+    /**
+     * deleteBudget
+     */
+    'delete'(
+      parameters?: Parameters<Paths.DeleteBudget.PathParameters> | null,
+      data?: any,
+      config?: AxiosRequestConfig  
+    ): OperationResponse<Paths.DeleteBudget.Responses.$200>
   }
   ['/api/payees']: {
     /**
