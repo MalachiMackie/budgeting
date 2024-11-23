@@ -1,9 +1,10 @@
-import { Table } from "@mantine/core";
+import { Button, Table } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { CreateTransactionRequest, Transaction } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
+import { DeleteTransactionModal } from "./DeleteTransactionModal";
 import { NewTransactionRow } from "./NewTransactionRow";
 import { TransactionRow } from "./TransactionRow";
 
@@ -19,6 +20,7 @@ export function TransactionList({
 
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [showDeleteTransaction, setShowDeleteTransaction] = useState(false);
 
   const { data: payees, isLoading: payeesLoading } = useQuery({
     queryKey: queryKeys.payees.fetch(userId),
@@ -40,9 +42,17 @@ export function TransactionList({
     mutationFn: (request: CreateTransactionRequest) =>
       budgetingApi.createTransaction({ bankAccountId }, request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.transactions.fetch(bankAccountId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.transactions.fetch(bankAccountId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.bankAccounts.fetch,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.bankAccounts.fetchSingle(bankAccountId),
+        }),
+      ]);
     },
   });
 
@@ -67,7 +77,12 @@ export function TransactionList({
   };
 
   return (
-    <>
+    <div>
+      {selectedRows.size === 1 && (
+        <Button onClick={() => setShowDeleteTransaction(true)}>
+          Delete Transaction
+        </Button>
+      )}
       <Table>
         <Table.Thead>
           <Table.Tr>
@@ -124,6 +139,14 @@ export function TransactionList({
           )}
         </Table.Tbody>
       </Table>
-    </>
+      {showDeleteTransaction && selectedRows.size == 1 && (
+        <DeleteTransactionModal
+          bankAccountId={bankAccountId}
+          transactionId={selectedRows.values().next().value!}
+          onCancel={() => setShowDeleteTransaction(false)}
+          onSuccess={() => setShowDeleteTransaction(false)}
+        />
+      )}
+    </div>
   );
 }
