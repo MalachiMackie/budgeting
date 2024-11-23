@@ -1,7 +1,6 @@
 - Crud items
     - Update payee - BE Done
     - Delete payee - BE Done
-    - Delete transaction - BE Done
     - Delete budget - BE Done
 - Save pay period
 - Budget assignment
