@@ -1,5 +1,5 @@
-- Save pay period - BE done
 - Budget assignment
+- suggested budget assignment
 - Budget groups? ability to switch budgets like ynab
 - fix nav scrolling
 - Better transaction flow
