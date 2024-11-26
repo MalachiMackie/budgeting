@@ -296,7 +296,7 @@ mod tests {
         use chrono::NaiveDate;
         use rust_decimal_macros::dec;
 
-        use crate::models::{CreateUserRequest, UpdateScheduleRequest};
+        use crate::models::{UpdateScheduleRequest, User};
 
         use super::*;
 
@@ -319,8 +319,7 @@ mod tests {
 
             db::users::create(
                 db_pool,
-                user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
+                User::new(user_id, "name".into(), "email@email.com".into(), None),
             )
             .await
             .unwrap();
@@ -566,7 +565,7 @@ mod tests {
         use chrono::NaiveDate;
         use rust_decimal_macros::dec;
 
-        use crate::models::CreateUserRequest;
+        use crate::models::User;
 
         use super::*;
 
@@ -576,8 +575,7 @@ mod tests {
 
             db::users::create(
                 &db_pool,
-                user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
+                User::new(user_id, "name".into(), "email@email.com".into(), None),
             )
             .await
             .unwrap();
@@ -628,8 +626,7 @@ mod tests {
 
             db::users::create(
                 &db_pool,
-                user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
+                User::new(user_id, "name".into(), "email@email.com".into(), None),
             )
             .await
             .unwrap();

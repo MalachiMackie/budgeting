@@ -84,7 +84,7 @@ pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
     sqlx::query!("DELETE FROM Payees WHERE id = ?", id.as_simple())
         .execute(db_pool)
         .await?;
-    
+
     Ok(())
 }
 
@@ -92,7 +92,7 @@ pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
 mod tests {
     use std::sync::LazyLock;
 
-    use crate::{db::users, models::CreateUserRequest};
+    use crate::{db::users, models::User};
 
     use super::*;
 
@@ -105,16 +105,19 @@ mod tests {
 
         users::create(
             db_pool,
-            user_id1,
-            CreateUserRequest::new("name".into(), "email@email.com".into()),
+            User::new(user_id1, "name".into(), "email@email.com".into(), None),
         )
         .await
         .unwrap();
 
         users::create(
             db_pool,
-            user_id2,
-            CreateUserRequest::new("other name".into(), "email@email.com".into()),
+            User::new(
+                user_id2,
+                "other name".into(),
+                "email@email.com".into(),
+                None,
+            ),
         )
         .await
         .unwrap();
@@ -271,8 +274,9 @@ mod tests {
 
         let fetched = sqlx::query!("SELECT COUNT(*) as count FROM Payees WHERE id = ?", id)
             .fetch_one(&db_pool)
-            .await.unwrap();
-        
+            .await
+            .unwrap();
+
         assert_eq!(fetched.count, 0);
     }
 }

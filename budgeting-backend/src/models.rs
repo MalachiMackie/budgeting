@@ -43,17 +43,24 @@ pub struct CreateTransactionRequest {
     pub budget_id: Uuid,
 }
 
-#[derive(Deserialize, Serialize, Constructor, ToSchema, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Constructor, ToSchema, Debug, PartialEq, Clone)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
     pub email: String,
+    pub pay_frequency: Option<Schedule>,
 }
 
 #[derive(Deserialize, Serialize, ToSchema, Constructor)]
 pub struct CreateUserRequest {
     pub name: String,
     pub email: String,
+}
+
+#[derive(Deserialize, Serialize, ToSchema, Constructor)]
+pub struct UpdateUserRequest {
+    pub name: String,
+    pub pay_frequency: Option<UpdateScheduleRequest>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, ToSchema, Constructor, Clone)]

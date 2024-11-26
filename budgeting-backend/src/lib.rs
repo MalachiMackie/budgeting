@@ -2,7 +2,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::must_use_candidate)]
-#![deny(warnings)]
 pub mod db;
 pub mod extensions;
 pub mod models;
@@ -41,7 +40,10 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
             put(payees::update).delete(payees::delete),
         )
         .route("/api/users", get(users::get).post(users::create))
-        .route("/api/users/:userId", get(users::get_single))
+        .route(
+            "/api/users/:userId",
+            get(users::get_single).put(users::update),
+        )
         .route(
             "/api/bank-accounts",
             get(bank_accounts::get).post(bank_accounts::create),
@@ -167,7 +169,7 @@ impl IntoResponse for AppError {
         match self {
             AppError::InternalServerError(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Something went rong: {e}"),
+                format!("Something went wrong: {e}"),
             ),
             AppError::BadRequest(e) => (StatusCode::BAD_REQUEST, e.to_string()),
             AppError::NotFound(e) => (StatusCode::NOT_FOUND, e.to_string()),

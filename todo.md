@@ -1,4 +1,4 @@
-- Save pay period
+- Save pay period - BE done
 - Budget assignment
 - Budget groups? ability to switch budgets like ynab
 - fix nav scrolling

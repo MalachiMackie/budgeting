@@ -119,7 +119,7 @@ mod tests {
     use crate::{
         db,
         extensions::decimal::DecimalExt,
-        models::{Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateUserRequest},
+        models::{Budget, CreateBankAccountRequest, CreatePayeeRequest, User},
     };
 
     use super::*;
@@ -137,8 +137,7 @@ mod tests {
 
         db::users::create(
             db_pool,
-            user_id,
-            CreateUserRequest::new("User".into(), "email@email.com".into()),
+            User::new(user_id, "User".into(), "email@email.com".into(), None),
         )
         .await
         .unwrap();

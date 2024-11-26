@@ -126,6 +126,10 @@ WHERE id = ?",
 }
 
 pub async fn get_by_ids(db_pool: &MySqlPool, ids: &[Uuid]) -> Result<Box<[Schedule]>, Error> {
+    if ids.is_empty() {
+        return Ok(Box::new([]));
+    }
+
     let params = vec!["?"; ids.len()];
 
     let query_string = format!(

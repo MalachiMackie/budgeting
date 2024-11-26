@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use budgeting_backend::{
     db,
-    models::{CreatePayeeRequest, CreateUserRequest, Payee, UpdatePayeeRequest},
+    models::{CreatePayeeRequest, Payee, UpdatePayeeRequest, User},
 };
 use common::*;
 use sqlx::MySqlPool;
@@ -16,8 +16,12 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::users::create(
         db_pool,
-        user_id,
-        CreateUserRequest::new("name".to_owned(), "someone@somewhere.com".to_owned()),
+        User::new(
+            user_id,
+            "name".to_owned(),
+            "someone@somewhere.com".to_owned(),
+            None,
+        ),
     )
     .await
     .unwrap();

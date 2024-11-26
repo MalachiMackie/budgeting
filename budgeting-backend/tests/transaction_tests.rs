@@ -6,7 +6,7 @@ use budgeting_backend::{
     db::{self, Error},
     models::{
         Budget, CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
-        CreateUserRequest, Transaction, UpdateTransactionRequest,
+        Transaction, UpdateTransactionRequest, User,
     },
 };
 use chrono::NaiveDate;
@@ -29,8 +29,7 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::users::create(
         db_pool,
-        user_id,
-        CreateUserRequest::new("name".into(), "email@email.com".into()),
+        User::new(user_id, "name".into(), "email@email.com".into(), None),
     )
     .await
     .unwrap();
@@ -192,9 +191,7 @@ pub async fn update_transaction(db_pool: MySqlPool) {
     .unwrap();
 
     let response = test_server
-        .put(&format!(
-            "/api/transactions/{transaction_id}"
-        ))
+        .put(&format!("/api/transactions/{transaction_id}"))
         .json(&UpdateTransactionRequest::new(
             dec!(-1.2),
             payee_id_2,
@@ -202,7 +199,7 @@ pub async fn update_transaction(db_pool: MySqlPool) {
             NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
         ))
         .await;
-    
+
     response.assert_ok();
 }
 
@@ -236,16 +233,18 @@ pub async fn delete_transaction(db_pool: MySqlPool) {
         ),
     )
     .await
-    .unwrap();   
-    
-    let response = test_server.delete(&format!("/api/transactions/{}?user_id={}", transaction.id, user_id))
+    .unwrap();
+
+    let response = test_server
+        .delete(&format!(
+            "/api/transactions/{}?user_id={}",
+            transaction.id, user_id
+        ))
         .await;
-    
+
     response.assert_ok();
-    
-    let find_response = db::transactions::get_single(
-        &db_pool,
-        transaction.id).await;
-    
+
+    let find_response = db::transactions::get_single(&db_pool, transaction.id).await;
+
     assert!(matches!(find_response, Err(Error::NotFound)));
 }

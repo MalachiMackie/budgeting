@@ -8,7 +8,8 @@ use std::sync::OnceLock;
 use budgeting_backend::{
     db::{self, Error},
     models::{
-        BankAccount, Budget, CreateBankAccountRequest, CreateUserRequest, UpdateBankAccountRequest,
+        BankAccount, Budget, CreateBankAccountRequest, UpdateBankAccountRequest,
+        User,
     },
 };
 use common::*;
@@ -27,8 +28,12 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::users::create(
         db_pool,
-        user_id,
-        CreateUserRequest::new("name".to_owned(), "someone@email.com".to_owned()),
+        User::new(
+            user_id,
+            "name".to_owned(),
+            "someone@email.com".to_owned(),
+            None,
+        ),
     )
     .await
     .unwrap();
@@ -72,10 +77,9 @@ pub async fn create_bank_account(db_pool: MySqlPool) {
     response.assert_created();
     let bank_account_id: Uuid = response.json();
 
-    let found_bank_account =
-        db::bank_accounts::get_single(&db_pool, bank_account_id, user_id)
-            .await
-            .unwrap();
+    let found_bank_account = db::bank_accounts::get_single(&db_pool, bank_account_id, user_id)
+        .await
+        .unwrap();
 
     assert_eq!(
         found_bank_account,

@@ -199,7 +199,6 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
 }
 
 pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
-
     sqlx::query!("DELETE FROM Budgets WHERE id = ?", id.as_simple())
         .execute(db_pool)
         .await?;
@@ -361,7 +360,7 @@ mod tests {
         use crate::{
             db,
             extensions::once_lock::OnceLockExt,
-            models::{CreateUserRequest, RepeatingTargetType, SchedulePeriod},
+            models::{RepeatingTargetType, SchedulePeriod, User},
         };
 
         use super::*;
@@ -373,8 +372,7 @@ mod tests {
 
             db::users::create(
                 db_pool,
-                user_id,
-                CreateUserRequest::new("name".into(), "email@email.com".into()),
+                User::new(user_id, "name".into(), "email@email.com".into(), None),
             )
             .await
             .unwrap();
@@ -495,9 +493,7 @@ mod tests {
                 },
             };
 
-            schedule::create(&db_pool, schedule.clone())
-                .await
-                .unwrap();
+            schedule::create(&db_pool, schedule.clone()).await.unwrap();
 
             let target = BudgetTarget::Repeating {
                 target_amount: dec!(1.2),
@@ -541,9 +537,7 @@ mod tests {
                 },
             };
 
-            schedule::create(&db_pool, schedule.clone())
-                .await
-                .unwrap();
+            schedule::create(&db_pool, schedule.clone()).await.unwrap();
 
             let target = BudgetTarget::Repeating {
                 target_amount: dec!(1.2),
@@ -607,9 +601,7 @@ mod tests {
                 },
             };
 
-            schedule::create(&db_pool, schedule.clone())
-                .await
-                .unwrap();
+            schedule::create(&db_pool, schedule.clone()).await.unwrap();
 
             let target = BudgetTarget::Repeating {
                 target_amount: dec!(1.2),

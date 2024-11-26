@@ -10,8 +10,8 @@ use budgeting_backend::{
     db::{self, Error},
     models::{
         Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
-        CreateScheduleRequest, CreateUserRequest, RepeatingTargetType, Schedule, SchedulePeriod,
-        SchedulePeriodType, UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
+        CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod,
+        SchedulePeriodType, UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, User,
     },
 };
 use sqlx::MySqlPool;
@@ -24,8 +24,7 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::users::create(
         db_pool,
-        user_id,
-        CreateUserRequest::new("name".into(), "email@email.com".into()),
+        User::new(user_id, "name".into(), "email@email.com".into(), None),
     )
     .await
     .unwrap();

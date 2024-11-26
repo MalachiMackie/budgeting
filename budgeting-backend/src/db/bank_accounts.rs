@@ -31,10 +31,7 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
     }
 }
 
-pub async fn get(
-    db_pool: &MySqlPool,
-    user_id: Uuid,
-) -> Result<Box<[BankAccount]>, Error> {
+pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[BankAccount]>, Error> {
     let bank_accounts: Vec<BankAccount> = sqlx::query_as!(
         BankAccountDbModel,
         r"
@@ -130,7 +127,7 @@ mod tests {
     use crate::{
         db,
         extensions::{decimal::DecimalExt, once_lock::OnceLockExt},
-        models::{Budget, CreatePayeeRequest, CreateTransactionRequest, CreateUserRequest},
+        models::{Budget, CreatePayeeRequest, CreateTransactionRequest, User},
     };
 
     use super::*;
@@ -148,8 +145,7 @@ mod tests {
 
         db::users::create(
             db_pool,
-            user_id,
-            CreateUserRequest::new("name".into(), "email@email.com".into()),
+            User::new(user_id, "name".into(), "email@email.com".into(), None),
         )
         .await
         .unwrap();
