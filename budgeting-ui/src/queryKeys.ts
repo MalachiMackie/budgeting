@@ -1,6 +1,10 @@
 import { QueryKey } from "@tanstack/react-query";
 
 export const queryKeys = {
+  users: {
+    fetchSingle: (userId: string) => ["users", userId],
+    edit: (userId: string) => ["edit-user", userId],
+  },
   budgets: {
     fetch: ["budgets"],
     create: ["create-budget"],

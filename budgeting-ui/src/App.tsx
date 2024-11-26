@@ -23,6 +23,10 @@ import { AccountsPage, createAccountsLoader } from "./routes/AccountsPage";
 import { BudgetsPage, createBudgetsLoader } from "./routes/BudgetsPage";
 import { createPayeesLoader, PayeesPage } from "./routes/PayeesPage";
 import { createRootLoader, Root } from "./routes/Root";
+import {
+  createUserAccountLoader,
+  UserAccountPage,
+} from "./routes/UserAccountPage";
 
 export const BudgetingApiContext = createContext<Client>(null!);
 
@@ -116,6 +120,11 @@ export function BudgetingRouterWrapper() {
           path: "/payees",
           element: <PayeesPage />,
           loader: createPayeesLoader(api, queryClient, userId),
+        },
+        {
+          path: "/user-account",
+          element: <UserAccountPage />,
+          loader: createUserAccountLoader(api, queryClient, userId),
         },
       ],
     },

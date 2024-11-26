@@ -154,10 +154,20 @@ declare namespace Components {
             date: string; // date
             payee_id: string; // uuid
         }
+        export interface UpdateUserRequest {
+            name: string;
+            pay_frequency?: {
+                period: SchedulePeriod;
+            };
+        }
         export interface User {
             email: string;
             id: string; // uuid
             name: string;
+            pay_frequency?: {
+                id: string; // uuid
+                period: SchedulePeriod;
+            };
         }
     }
 }
@@ -383,6 +393,19 @@ declare namespace Paths {
             }
         }
     }
+    namespace UpdateUser {
+        namespace Parameters {
+            export type UserId = string; // uuid
+        }
+        export interface PathParameters {
+            userId: Parameters.UserId /* uuid */;
+        }
+        export type RequestBody = Components.Schemas.UpdateUserRequest;
+        namespace Responses {
+            export interface $200 {
+            }
+        }
+    }
 }
 
 export interface OperationMethods {
@@ -546,6 +569,14 @@ export interface OperationMethods {
     data?: any,
     config?: AxiosRequestConfig  
   ): OperationResponse<Paths.GetUser.Responses.$200>
+  /**
+   * updateUser
+   */
+  'updateUser'(
+    parameters?: Parameters<Paths.UpdateUser.PathParameters> | null,
+    data?: Paths.UpdateUser.RequestBody,
+    config?: AxiosRequestConfig  
+  ): OperationResponse<Paths.UpdateUser.Responses.$200>
 }
 
 export interface PathsDictionary {
@@ -728,6 +759,14 @@ export interface PathsDictionary {
       data?: any,
       config?: AxiosRequestConfig  
     ): OperationResponse<Paths.GetUser.Responses.$200>
+    /**
+     * updateUser
+     */
+    'put'(
+      parameters?: Parameters<Paths.UpdateUser.PathParameters> | null,
+      data?: Paths.UpdateUser.RequestBody,
+      config?: AxiosRequestConfig  
+    ): OperationResponse<Paths.UpdateUser.Responses.$200>
   }
 }
 
@@ -755,4 +794,5 @@ export type UpdateBudgetTargetRequest = Components.Schemas.UpdateBudgetTargetReq
 export type UpdatePayeeRequest = Components.Schemas.UpdatePayeeRequest;
 export type UpdateScheduleRequest = Components.Schemas.UpdateScheduleRequest;
 export type UpdateTransactionRequest = Components.Schemas.UpdateTransactionRequest;
+export type UpdateUserRequest = Components.Schemas.UpdateUserRequest;
 export type User = Components.Schemas.User;

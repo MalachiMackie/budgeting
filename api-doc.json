@@ -644,6 +644,38 @@
             }
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "updateUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
       }
     }
   },
@@ -1258,6 +1290,25 @@
           }
         }
       },
+      "UpdateUserRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "pay_frequency": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            ],
+            "nullable": false
+          }
+        }
+      },
       "User": {
         "type": "object",
         "required": [
@@ -1275,6 +1326,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "pay_frequency": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Schedule"
+              }
+            ],
+            "nullable": false
           }
         }
       }

@@ -90,6 +90,12 @@ export function Root(): JSX.Element {
             link: "/payees",
             icon: IconMan,
           },
+          {
+            type: "link",
+            id: "user-account",
+            label: "User Account",
+            link: "/user-account",
+          },
         ]}
       />
       <div style={{ flexGrow: 1, padding: "1rem" }}>
