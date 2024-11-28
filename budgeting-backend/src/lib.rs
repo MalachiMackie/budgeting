@@ -67,7 +67,10 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
             "/api/budgets/:budgetId",
             put(budgets::update).delete(budgets::delete),
         )
-        .route("/api/budgets/:budgetId/assign", put(budgets::assign_to_budget))
+        .route(
+            "/api/budgets/:budgetId/assign",
+            put(budgets::assign_to_budget),
+        )
         .with_state(db_pool)
         .layer(
             ServiceBuilder::new()

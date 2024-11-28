@@ -7,10 +7,7 @@ use std::sync::OnceLock;
 
 use budgeting_backend::{
     db::{self, Error},
-    models::{
-        BankAccount, Budget, CreateBankAccountRequest, UpdateBankAccountRequest,
-        User,
-    },
+    models::{BankAccount, Budget, CreateBankAccountRequest, UpdateBankAccountRequest, User},
 };
 use common::*;
 use rust_decimal::{prelude::FromPrimitive, Decimal};

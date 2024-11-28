@@ -113,8 +113,7 @@ pub async fn create(db_pool: &MySqlPool, user: User) -> Result<(), Error> {
         user.id.as_simple(),
         user.name,
         user.email,
-        user
-            .pay_frequency
+        user.pay_frequency
             .map(|schedule| uuid::fmt::Simple::from(schedule.id))
     )
     .execute(db_pool)

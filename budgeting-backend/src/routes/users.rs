@@ -365,7 +365,7 @@ mod tests {
         assert_eq!(response, StatusCode::OK);
 
         let mut fetched = db::users::get_single(&db_pool, user_id).await.unwrap();
-        
+
         if let Some(schedule) = &mut fetched.pay_frequency {
             schedule.id = Uuid::nil();
         }

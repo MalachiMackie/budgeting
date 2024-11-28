@@ -146,7 +146,7 @@ impl Budget {
         self.assignments.push(BudgetAssignment {
             id: Uuid::new_v4(),
             amount,
-            date
+            date,
         });
     }
 }

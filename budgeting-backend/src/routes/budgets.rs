@@ -14,9 +14,9 @@ use uuid::Uuid;
 use crate::{
     db::{self},
     models::{
-        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
+        Budget, BudgetAssignment, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
         CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType,
-        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, BudgetAssignment
+        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
     },
     AppError,
 };
@@ -150,7 +150,7 @@ pub async fn create(
             }
         }),
         user_id: request.user_id,
-        assignments: vec![]
+        assignments: vec![],
     };
 
     db::budgets::create(&db_pool, budget)
@@ -331,7 +331,6 @@ pub async fn assign_to_budget(
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,10 +382,10 @@ mod tests {
                     target: None,
                     user_id,
                     assignments: vec![BudgetAssignment {
-                            id: assignment_id1,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                        id: assignment_id1,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    }],
                 })
                 .clone();
 
@@ -399,10 +398,10 @@ mod tests {
                     }),
                     user_id,
                     assignments: vec![BudgetAssignment {
-                            id: assignment_id2,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                        id: assignment_id2,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    }],
                 })
                 .clone();
 
@@ -424,10 +423,10 @@ mod tests {
                     }),
                     user_id,
                     assignments: vec![BudgetAssignment {
-                            id: assignment_id3,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                        id: assignment_id3,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    }],
                 })
                 .clone();
 
@@ -465,10 +464,10 @@ mod tests {
                 target: None,
                 user_id,
                 assignments: vec![BudgetAssignment {
-                            id: *ASSIGNMENT_ID1,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                    id: *ASSIGNMENT_ID1,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }],
             };
 
             let fetched = db::budgets::get_single(&db_pool, budget.id).await.unwrap();
@@ -518,10 +517,10 @@ mod tests {
                 }),
                 user_id,
                 assignments: vec![BudgetAssignment {
-                            id: *ASSIGNMENT_ID2,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                    id: *ASSIGNMENT_ID2,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }],
             };
 
             assert_eq!(fetched, expected);
@@ -569,10 +568,10 @@ mod tests {
                 }),
                 user_id,
                 assignments: vec![BudgetAssignment {
-                            id: *ASSIGNMENT_ID1,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                    id: *ASSIGNMENT_ID1,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }],
             };
 
             assert_eq!(fetched, expected);
@@ -604,10 +603,10 @@ mod tests {
                 target: None,
                 user_id,
                 assignments: vec![BudgetAssignment {
-                            id: *ASSIGNMENT_ID3,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                    id: *ASSIGNMENT_ID3,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }],
             };
 
             assert_eq!(fetched, expected);
@@ -643,10 +642,10 @@ mod tests {
                 }),
                 user_id,
                 assignments: vec![BudgetAssignment {
-                            id: *ASSIGNMENT_ID3,
-                            amount: dec!(10),
-                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
-                        }]
+                    id: *ASSIGNMENT_ID3,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }],
             };
 
             assert_eq!(fetched, expected);
@@ -665,7 +664,12 @@ mod tests {
         async fn test_init(db_pool: &MySqlPool) {
             let user_id = *USER_ID;
 
-            db::users::create(db_pool, User::new(user_id, "name".into(), "email@email.com".into(), None)).await.unwrap();
+            db::users::create(
+                db_pool,
+                User::new(user_id, "name".into(), "email@email.com".into(), None),
+            )
+            .await
+            .unwrap();
         }
 
         #[sqlx::test]
@@ -679,22 +683,31 @@ mod tests {
                 assignments: vec![BudgetAssignment {
                     id: Uuid::new_v4(),
                     amount: Decimal::ZERO,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 27).unwrap()
+                    date: NaiveDate::from_ymd_opt(2024, 11, 27).unwrap(),
                 }],
                 name: "name".into(),
-                target: None
+                target: None,
             };
 
             db::budgets::create(&db_pool, budget.clone()).await.unwrap();
 
-            assign_to_budget(State(db_pool.clone()), Path(budget_id), Json(AssignToBudgetRequest{amount: Decimal::ZERO, date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()})).await.unwrap();
+            assign_to_budget(
+                State(db_pool.clone()),
+                Path(budget_id),
+                Json(AssignToBudgetRequest {
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }),
+            )
+            .await
+            .unwrap();
 
             budget.assignments[0].id = Uuid::nil();
 
             budget.assignments.push(BudgetAssignment {
                 id: Uuid::nil(),
                 amount: Decimal::ZERO,
-                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
             });
 
             let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
@@ -717,17 +730,26 @@ mod tests {
                 user_id: *USER_ID,
                 assignments: vec![],
                 name: "name".into(),
-                target: None
+                target: None,
             };
 
             db::budgets::create(&db_pool, budget.clone()).await.unwrap();
 
-            assign_to_budget(State(db_pool.clone()), Path(budget_id), Json(AssignToBudgetRequest{amount: Decimal::ZERO, date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()})).await.unwrap();
+            assign_to_budget(
+                State(db_pool.clone()),
+                Path(budget_id),
+                Json(AssignToBudgetRequest {
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                }),
+            )
+            .await
+            .unwrap();
 
             budget.assignments.push(BudgetAssignment {
                 id: Uuid::nil(),
                 amount: Decimal::ZERO,
-                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
             });
 
             let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
@@ -741,8 +763,8 @@ mod tests {
 
     mod delete_budget_tests {
         use chrono::NaiveDate;
-        use rust_decimal_macros::dec;
         use db::Error;
+        use rust_decimal_macros::dec;
 
         use crate::models::User;
 
@@ -783,7 +805,7 @@ mod tests {
                     schedule: schedule.clone(),
                 }),
                 user_id,
-                assignments: vec![]
+                assignments: vec![],
             };
 
             db::budgets::create(&db_pool, budget).await.unwrap();
@@ -818,7 +840,7 @@ mod tests {
                 name: "name".into(),
                 target: None,
                 user_id,
-                assignments: vec![]
+                assignments: vec![],
             };
 
             db::budgets::create(&db_pool, budget).await.unwrap();
