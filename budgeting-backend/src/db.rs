@@ -15,6 +15,15 @@ pub enum Error {
 }
 
 impl Error {
+    #[cfg(debug_assertions)]
+    pub fn to_app_error(self, error: anyhow::Error) -> AppError {
+        match self {
+            Self::NotFound => AppError::NotFound(error),
+            Self::Unknown { error } => AppError::InternalServerError(error),
+            Self::MappingError { error } => AppError::InternalServerError(error),
+        }
+    }
+    #[cfg(not(debug_assertions))]
     pub fn to_app_error(self, error: anyhow::Error) -> AppError {
         match self {
             Self::NotFound => AppError::NotFound(error),

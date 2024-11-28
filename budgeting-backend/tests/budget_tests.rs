@@ -9,9 +9,7 @@ use std::sync::OnceLock;
 use budgeting_backend::{
     db::{self, Error},
     models::{
-        Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
-        CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod,
-        SchedulePeriodType, UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, User,
+        Budget, BudgetAssignment, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest, CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType, UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, User
     },
 };
 use sqlx::MySqlPool;
@@ -78,6 +76,7 @@ pub async fn test_create_budget(db_pool: MySqlPool) {
             repeating_type: RepeatingTargetType::RequireRepeating,
             schedule,
         }),
+        assignments: vec![]
     };
 
     assert_eq!(budget[0], expected_budget);
@@ -110,6 +109,13 @@ pub async fn test_get_budgets(db_pool: MySqlPool) {
             repeating_type: RepeatingTargetType::BuildUpTo,
             schedule,
         }),
+        assignments: vec![
+            BudgetAssignment {
+                id: Uuid::new_v4(),
+                amount: dec!(10),
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+            }
+        ]
     };
 
     db::budgets::create(&db_pool, budget.clone())
@@ -132,7 +138,7 @@ pub async fn delete_budget(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id))
+    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id, vec![BudgetAssignment {amount: dec!(10), id: Uuid::new_v4(), date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()}]))
         .await
         .unwrap();
 
@@ -155,7 +161,15 @@ pub async fn update_budget(db_pool: MySqlPool) {
     let user_id = *USER_ID.unwrap();
     let id = Uuid::new_v4();
 
-    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id))
+    let assignments = vec![
+        BudgetAssignment {
+            id: Uuid::new_v4(),
+            amount: dec!(10),
+            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+        }
+    ];
+
+    db::budgets::create(&db_pool, Budget::new(id, "name".into(), None, user_id, assignments.clone()))
         .await
         .unwrap();
 
@@ -197,6 +211,7 @@ pub async fn update_budget(db_pool: MySqlPool) {
             },
         }),
         user_id,
+        assignments
     );
 
     assert_eq!(find_response, expected);

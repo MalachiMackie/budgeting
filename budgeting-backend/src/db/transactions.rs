@@ -152,7 +152,7 @@ mod tests {
 
         db::budgets::create(
             db_pool,
-            Budget::new(budget_id, "Budget".into(), None, user_id),
+            Budget::new(budget_id, "Budget".into(), None, user_id, vec![]),
         )
         .await
         .unwrap();
@@ -237,7 +237,7 @@ mod tests {
 
         db::budgets::create(
             &db_pool,
-            Budget::new(budget_id_2, "Budget2".into(), None, user_id),
+            Budget::new(budget_id_2, "Budget2".into(), None, user_id, vec![]),
         )
         .await
         .unwrap();

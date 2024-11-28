@@ -160,7 +160,7 @@ mod tests {
 
         db::budgets::create(
             db_pool,
-            Budget::new(budget_id, "name".into(), None, user_id),
+            Budget::new(budget_id, "name".into(), None, user_id, vec![]),
         )
         .await
         .unwrap();

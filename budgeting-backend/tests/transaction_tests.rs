@@ -52,7 +52,7 @@ async fn test_init(db_pool: &MySqlPool) {
 
     db::budgets::create(
         db_pool,
-        Budget::new(budget_id, "Budget".into(), None, user_id),
+        Budget::new(budget_id, "Budget".into(), None, user_id, vec![]),
     )
     .await
     .unwrap();
@@ -163,7 +163,7 @@ pub async fn update_transaction(db_pool: MySqlPool) {
     .unwrap();
     db::budgets::create(
         &db_pool,
-        Budget::new(budget_id_2, "name".into(), None, user_id),
+        Budget::new(budget_id_2, "name".into(), None, user_id, vec![]),
     )
     .await
     .unwrap();
