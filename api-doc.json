@@ -378,6 +378,40 @@
         }
       }
     },
+    "/api/budgets/{budget_id}/assign": {
+      "put": {
+        "tags": [
+          "Budgets"
+        ],
+        "operationId": "assignToBudget",
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignToBudgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/payees": {
       "get": {
         "tags": [
@@ -681,6 +715,23 @@
   },
   "components": {
     "schemas": {
+      "AssignToBudgetRequest": {
+        "type": "object",
+        "required": [
+          "date",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "float"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "BankAccount": {
         "type": "object",
         "required": [
@@ -717,9 +768,16 @@
         "required": [
           "id",
           "name",
-          "user_id"
+          "user_id",
+          "assignments"
         ],
         "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetAssignment"
+            }
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -736,6 +794,28 @@
             "nullable": false
           },
           "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "BudgetAssignment": {
+        "type": "object",
+        "required": [
+          "id",
+          "amount",
+          "date"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "float"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "id": {
             "type": "string",
             "format": "uuid"
           }

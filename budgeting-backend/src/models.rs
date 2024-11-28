@@ -141,6 +141,16 @@ pub struct Budget {
     pub assignments: Vec<BudgetAssignment>,
 }
 
+impl Budget {
+    pub fn assign_amount(&mut self, amount: Decimal, date: NaiveDate) {
+        self.assignments.push(BudgetAssignment {
+            id: Uuid::new_v4(),
+            amount,
+            date
+        });
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize, Constructor)]
 pub struct BudgetAssignment {
     pub id: Uuid,

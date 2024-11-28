@@ -8,6 +8,10 @@ import type {
 
 declare namespace Components {
     namespace Schemas {
+        export interface AssignToBudgetRequest {
+            amount: number; // float
+            date: string; // date
+        }
         export interface BankAccount {
             balance: number; // float
             id: string; // uuid
@@ -16,6 +20,7 @@ declare namespace Components {
             user_id: string; // uuid
         }
         export interface Budget {
+            assignments: BudgetAssignment[];
             id: string; // uuid
             name: string;
             target?: {
@@ -28,6 +33,11 @@ declare namespace Components {
                 type: "Repeating";
             };
             user_id: string; // uuid
+        }
+        export interface BudgetAssignment {
+            amount: number; // float
+            date: string; // date
+            id: string; // uuid
         }
         export type BudgetTarget = {
             target_amount: number; // float
@@ -172,6 +182,19 @@ declare namespace Components {
     }
 }
 declare namespace Paths {
+    namespace AssignToBudget {
+        namespace Parameters {
+            export type BudgetId = string; // uuid
+        }
+        export interface PathParameters {
+            budget_id: Parameters.BudgetId /* uuid */;
+        }
+        export type RequestBody = Components.Schemas.AssignToBudgetRequest;
+        namespace Responses {
+            export interface $200 {
+            }
+        }
+    }
     namespace CreateBankAccount {
         export type RequestBody = Components.Schemas.CreateBankAccountRequest;
         namespace Responses {
@@ -498,6 +521,14 @@ export interface OperationMethods {
     config?: AxiosRequestConfig  
   ): OperationResponse<Paths.DeleteBudget.Responses.$200>
   /**
+   * assignToBudget
+   */
+  'assignToBudget'(
+    parameters?: Parameters<Paths.AssignToBudget.PathParameters> | null,
+    data?: Paths.AssignToBudget.RequestBody,
+    config?: AxiosRequestConfig  
+  ): OperationResponse<Paths.AssignToBudget.Responses.$200>
+  /**
    * getPayees
    */
   'getPayees'(
@@ -678,6 +709,16 @@ export interface PathsDictionary {
       config?: AxiosRequestConfig  
     ): OperationResponse<Paths.DeleteBudget.Responses.$200>
   }
+  ['/api/budgets/{budget_id}/assign']: {
+    /**
+     * assignToBudget
+     */
+    'put'(
+      parameters?: Parameters<Paths.AssignToBudget.PathParameters> | null,
+      data?: Paths.AssignToBudget.RequestBody,
+      config?: AxiosRequestConfig  
+    ): OperationResponse<Paths.AssignToBudget.Responses.$200>
+  }
   ['/api/payees']: {
     /**
      * getPayees
@@ -772,8 +813,10 @@ export interface PathsDictionary {
 
 export type Client = OpenAPIClient<OperationMethods, PathsDictionary>
 
+export type AssignToBudgetRequest = Components.Schemas.AssignToBudgetRequest;
 export type BankAccount = Components.Schemas.BankAccount;
 export type Budget = Components.Schemas.Budget;
+export type BudgetAssignment = Components.Schemas.BudgetAssignment;
 export type BudgetTarget = Components.Schemas.BudgetTarget;
 export type CreateBankAccountRequest = Components.Schemas.CreateBankAccountRequest;
 export type CreateBudgetRequest = Components.Schemas.CreateBudgetRequest;

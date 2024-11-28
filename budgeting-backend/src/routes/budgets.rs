@@ -12,18 +12,18 @@ use utoipa::{OpenApi, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    db::{self, Error},
+    db::{self},
     models::{
         Budget, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
         CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType,
-        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
+        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, BudgetAssignment
     },
     AppError,
 };
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, create, update, delete),
+    paths(get, create, update, delete, assign_to_budget),
     components(schemas(
         Budget,
         CreateBudgetRequest,
@@ -36,7 +36,9 @@ use crate::{
         CreateBudgetTargetRequest,
         UpdateBudgetTargetRequest,
         CreateScheduleRequest,
-        UpdateScheduleRequest
+        UpdateScheduleRequest,
+        AssignToBudgetRequest,
+        BudgetAssignment
     ))
 )]
 pub struct Api;
@@ -100,7 +102,7 @@ pub async fn create(
     let user_result = db::users::get_single(&db_pool, request.user_id).await;
     match user_result {
         Ok(_) => (),
-        Err(Error::NotFound) => {
+        Err(db::Error::NotFound) => {
             return Err(AppError::NotFound(anyhow!(
                 "user with id {} was not found",
                 request.user_id
@@ -290,7 +292,44 @@ pub async fn delete(
     Ok(())
 }
 
+#[derive(ToSchema, Serialize, Deserialize)]
+pub struct AssignToBudgetRequest {
+    pub date: NaiveDate,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
+}
 
+#[utoipa::path(
+    put,
+    path = "/api/budgets/{budget_id}/assign",
+    responses(
+        (status = OK, description = "Success")
+    ),
+    request_body = AssignToBudgetRequest,
+    params(
+        ("budget_id" = Uuid, Path,),
+    ),
+    tag = API_TAG,
+    operation_id = "assignToBudget"
+)]
+pub async fn assign_to_budget(
+    State(db_pool): State<MySqlPool>,
+    Path(budget_id): Path<Uuid>,
+    Json(query): Json<AssignToBudgetRequest>,
+) -> Result<(), AppError> {
+    let mut budget = db::budgets::get_single(&db_pool, budget_id)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to get budget to assign to")))?;
+
+    budget.assign_amount(query.amount, query.date);
+
+    db::budgets::update(&db_pool, budget)
+        .await
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update budget")))?;
+
+    Ok(())
+}
 
 
 #[cfg(test)]
@@ -614,9 +653,96 @@ mod tests {
         }
     }
 
+    mod assign_tests {
+        use std::sync::LazyLock;
+
+        use crate::models::{BudgetAssignment, User};
+
+        use super::*;
+
+        static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+
+        async fn test_init(db_pool: &MySqlPool) {
+            let user_id = *USER_ID;
+
+            db::users::create(db_pool, User::new(user_id, "name".into(), "email@email.com".into(), None)).await.unwrap();
+        }
+
+        #[sqlx::test]
+        pub async fn existing_assignment_test(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
+            let budget_id = Uuid::new_v4();
+            let mut budget = Budget {
+                id: budget_id,
+                user_id: *USER_ID,
+                assignments: vec![BudgetAssignment {
+                    id: Uuid::new_v4(),
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 27).unwrap()
+                }],
+                name: "name".into(),
+                target: None
+            };
+
+            db::budgets::create(&db_pool, budget.clone()).await.unwrap();
+
+            assign_to_budget(State(db_pool.clone()), Path(budget_id), Json(AssignToBudgetRequest{amount: Decimal::ZERO, date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()})).await.unwrap();
+
+            budget.assignments[0].id = Uuid::nil();
+
+            budget.assignments.push(BudgetAssignment {
+                id: Uuid::nil(),
+                amount: Decimal::ZERO,
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+            });
+
+            let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+
+            assert_eq!(fetched.assignments.len(), 2);
+
+            fetched.assignments[0].id = Uuid::nil();
+            fetched.assignments[1].id = Uuid::nil();
+
+            assert_eq!(fetched, budget);
+        }
+
+        #[sqlx::test]
+        pub async fn empty_assignment_test(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
+            let budget_id = Uuid::new_v4();
+            let mut budget = Budget {
+                id: budget_id,
+                user_id: *USER_ID,
+                assignments: vec![],
+                name: "name".into(),
+                target: None
+            };
+
+            db::budgets::create(&db_pool, budget.clone()).await.unwrap();
+
+            assign_to_budget(State(db_pool.clone()), Path(budget_id), Json(AssignToBudgetRequest{amount: Decimal::ZERO, date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()})).await.unwrap();
+
+            budget.assignments.push(BudgetAssignment {
+                id: Uuid::nil(),
+                amount: Decimal::ZERO,
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap()
+            });
+
+            let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+            assert_eq!(fetched.assignments.len(), 1);
+
+            fetched.assignments[0].id = Uuid::nil();
+
+            assert_eq!(fetched, budget);
+        }
+    }
+
     mod delete_budget_tests {
         use chrono::NaiveDate;
         use rust_decimal_macros::dec;
+        use db::Error;
 
         use crate::models::User;
 
