@@ -1,16 +1,17 @@
 use rust_decimal::Decimal;
-use sqlx::MySqlPool;
+use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
 use crate::models::{BankAccount, CreateBankAccountRequest};
 
 use super::Error;
 
+#[derive(FromRow)]
 struct BankAccountDbModel {
-    id: String,
+    id: uuid::fmt::Simple,
     name: String,
     initial_amount: Decimal,
-    user_id: String,
+    user_id: uuid::fmt::Simple,
     transaction_total: Option<Decimal>,
 }
 
@@ -18,8 +19,8 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
     type Error = anyhow::Error;
 
     fn try_from(value: BankAccountDbModel) -> Result<Self, Self::Error> {
-        let id: Uuid = value.id.parse()?;
-        let user_id: Uuid = value.user_id.parse()?;
+        let id: Uuid = value.id.into_uuid();
+        let user_id: Uuid = value.user_id.into_uuid();
 
         Ok(BankAccount {
             id,
@@ -32,16 +33,15 @@ impl TryFrom<BankAccountDbModel> for BankAccount {
 }
 
 pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[BankAccount]>, Error> {
-    let bank_accounts: Vec<BankAccount> = sqlx::query_as!(
-        BankAccountDbModel,
+    let bank_accounts: Vec<BankAccount> = sqlx::query_as::<MySql, BankAccountDbModel>(
         r"
          SELECT ba.id, ba.name, ba.initial_amount, ba.user_id, SUM(t.amount) as transaction_total
          FROM BankAccounts ba
          LEFT JOIN Transactions t ON ba.id = t.bank_account_id
          WHERE user_id = ?
          GROUP BY ba.id, ba.name, ba.initial_amount, ba.user_id",
-        user_id.as_simple()
     )
+    .bind(user_id.simple())
     .fetch_all(db_pool)
     .await?
     .into_iter()
@@ -56,8 +56,7 @@ pub async fn get_single(
     account_id: Uuid,
     user_id: Uuid,
 ) -> Result<BankAccount, Error> {
-    sqlx::query_as!(
-        BankAccountDbModel,
+    sqlx::query_as::<MySql, BankAccountDbModel>(
         r"
         SELECT ba.id, ba.name, ba.initial_amount, ba.user_id, SUM(t.amount) as transaction_total
          FROM BankAccounts ba
@@ -65,9 +64,9 @@ pub async fn get_single(
          WHERE user_id = ?
          AND ba.id = ?
          GROUP BY ba.id, ba.name, ba.initial_amount, ba.user_id",
-        user_id.as_simple(),
-        account_id.as_simple()
     )
+    .bind(user_id.simple())
+    .bind(account_id.simple())
     .fetch_optional(db_pool)
     .await?
     .map(|account| account.try_into().unwrap())

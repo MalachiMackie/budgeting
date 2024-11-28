@@ -1,15 +1,15 @@
-use sqlx::MySqlPool;
+use sqlx::{FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
 use crate::models::{CreatePayeeRequest, Payee};
 
 use super::Error;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, FromRow)]
 struct PayeeModel {
-    id: String,
+    id: uuid::fmt::Simple,
     name: String,
-    user_id: String,
+    user_id: uuid::fmt::Simple,
 }
 
 impl TryFrom<PayeeModel> for Payee {
@@ -18,18 +18,17 @@ impl TryFrom<PayeeModel> for Payee {
     fn try_from(value: PayeeModel) -> Result<Self, Self::Error> {
         Ok(Self {
             name: value.name,
-            id: value.id.parse()?,
-            user_id: value.user_id.parse()?,
+            id: value.id.into_uuid(),
+            user_id: value.user_id.into_uuid(),
         })
     }
 }
 
 pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Payee]>, Error> {
-    let payees: Box<[Payee]> = sqlx::query_as!(
-        PayeeModel,
+    let payees: Box<[Payee]> = sqlx::query_as::<MySql, PayeeModel>(
         "SELECT id, name, user_id FROM Payees WHERE user_id = ?",
-        user_id.as_simple()
     )
+    .bind(user_id.simple())
     .fetch_all(db_pool)
     .await?
     .into_iter()
@@ -57,15 +56,12 @@ pub async fn create(
 }
 
 pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Payee, Error> {
-    sqlx::query_as!(
-        PayeeModel,
-        "SELECT id, name, user_id FROM Payees WHERE id = ?",
-        id.as_simple()
-    )
-    .fetch_one(db_pool)
-    .await?
-    .try_into()
-    .map_err(|e| Error::MappingError { error: e })
+    sqlx::query_as::<MySql, PayeeModel>("SELECT id, name, user_id FROM Payees WHERE id = ?")
+        .bind(id.simple())
+        .fetch_one(db_pool)
+        .await?
+        .try_into()
+        .map_err(|e| Error::MappingError { error: e })
 }
 
 pub async fn update(db_pool: &MySqlPool, payee: Payee) -> Result<(), Error> {
@@ -194,11 +190,10 @@ mod tests {
         .await
         .unwrap();
 
-        let fetched = sqlx::query_as!(
-            PayeeModel,
+        let fetched = sqlx::query_as::<MySql, PayeeModel>(
             "SELECT id, name, user_id FROM Payees WHERE id = ?",
-            id.as_simple()
         )
+        .bind(id.simple())
         .fetch_one(&db_pool)
         .await
         .unwrap();
@@ -206,9 +201,9 @@ mod tests {
         assert_eq!(
             fetched,
             PayeeModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 name: "name".into(),
-                user_id: user_id.as_simple().to_string()
+                user_id: user_id.simple()
             }
         );
     }
@@ -234,11 +229,10 @@ mod tests {
 
         update(&db_pool, updated).await.unwrap();
 
-        let fetched = sqlx::query_as!(
-            PayeeModel,
+        let fetched = sqlx::query_as::<MySql, PayeeModel>(
             "SELECT id, name, user_id FROM Payees WHERE id = ?",
-            id.as_simple()
         )
+        .bind(id.simple())
         .fetch_one(&db_pool)
         .await
         .unwrap();
@@ -246,9 +240,9 @@ mod tests {
         assert_eq!(
             fetched,
             PayeeModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 name: "newName".into(),
-                user_id: user_id.as_simple().to_string()
+                user_id: user_id.simple()
             }
         );
     }

@@ -9,7 +9,7 @@ use super::Error;
 
 #[derive(FromRow, PartialEq, Debug, Clone)]
 struct ScheduleDbModel {
-    id: String,
+    id: uuid::fmt::Simple,
     period_type: String,
     period_starting_on: Option<NaiveDate>,
     custom_period_type: Option<String>,
@@ -21,7 +21,7 @@ impl TryFrom<ScheduleDbModel> for Schedule {
 
     fn try_from(value: ScheduleDbModel) -> Result<Self, Self::Error> {
         Ok(Schedule {
-            id: value.id.parse()?,
+            id: value.id.into_uuid(),
             period: match value.period_type.as_str() {
                 "Weekly" => SchedulePeriod::Weekly {
                     starting_on: value.period_starting_on.ok_or(anyhow::anyhow!(
@@ -66,7 +66,7 @@ impl TryFrom<ScheduleDbModel> for Schedule {
 impl From<Schedule> for ScheduleDbModel {
     fn from(value: Schedule) -> Self {
         Self {
-            id: value.id.as_simple().to_string(),
+            id: value.id.simple(),
             period_type: value.period.to_string(),
             period_starting_on: match value.period {
                 SchedulePeriod::Weekly { starting_on }
@@ -110,14 +110,13 @@ VALUE (?, ?, ?, ?, ?)",
 }
 
 pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Schedule, Error> {
-    sqlx::query_as!(
-        ScheduleDbModel,
+    sqlx::query_as::<MySql, ScheduleDbModel>(
         r"
 SELECT id, period_type, period_starting_on, custom_period_type, custom_period_every_count
 FROM Schedules
 WHERE id = ?",
-        id.as_simple()
     )
+    .bind(id.simple())
     .fetch_optional(db_pool)
     .await?
     .map(TryInto::try_into)
@@ -198,14 +197,14 @@ mod tests {
             let id = Uuid::new_v4();
             let started_on = NaiveDate::from_ymd_opt(2024, 9, 27).unwrap();
             let non_custom_db_model = ScheduleDbModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 period_type: "Weekly".into(),
                 period_starting_on: Some(started_on),
                 custom_period_type: None,
                 custom_period_every_count: None,
             };
             let custom_db_model = ScheduleDbModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 period_type: "Custom".into(),
                 period_starting_on: None,
                 custom_period_type: Some("Weekly".into()),
@@ -331,14 +330,14 @@ mod tests {
             let id = Uuid::new_v4();
             let started_on = NaiveDate::from_ymd_opt(2024, 9, 27).unwrap();
             let non_custom_db_model = ScheduleDbModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 period_type: "Weekly".into(),
                 period_starting_on: Some(started_on),
                 custom_period_type: None,
                 custom_period_every_count: None,
             };
             let custom_db_model = ScheduleDbModel {
-                id: id.as_simple().to_string(),
+                id: id.simple(),
                 period_type: "Custom".into(),
                 period_starting_on: None,
                 custom_period_type: Some("Weekly".into()),
@@ -392,11 +391,10 @@ mod tests {
 
             assert!(result.is_ok());
 
-            let schedules = sqlx::query_as!(
-                ScheduleDbModel,
+            let schedules = sqlx::query_as::<MySql, ScheduleDbModel>(
                 r"
 SELECT id, period_type, period_starting_on, custom_period_type, custom_period_every_count
-FROM Schedules"
+FROM Schedules",
             )
             .fetch_all(&db_pool)
             .await
@@ -405,7 +403,7 @@ FROM Schedules"
             assert_eq!(
                 schedules,
                 vec![ScheduleDbModel {
-                    id: id.as_simple().to_string(),
+                    id: id.simple(),
                     period_type: "Weekly".into(),
                     period_starting_on: Some(NaiveDate::from_ymd_opt(2024, 9, 27).unwrap()),
                     custom_period_type: None,

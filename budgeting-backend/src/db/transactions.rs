@@ -1,33 +1,32 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sqlx::MySqlPool;
+use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
 use crate::models::{CreateTransactionRequest, Transaction};
 
 use super::Error;
 
+#[derive(FromRow)]
 struct TransactionModel {
-    id: String,
-    payee_id: String,
+    id: uuid::fmt::Simple,
+    payee_id: uuid::fmt::Simple,
     date: NaiveDate,
     amount: Decimal,
-    bank_account_id: String,
-    budget_id: String,
+    bank_account_id: uuid::fmt::Simple,
+    budget_id: uuid::fmt::Simple,
 }
 
-impl TryFrom<TransactionModel> for Transaction {
-    type Error = anyhow::Error;
-
-    fn try_from(value: TransactionModel) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: value.id.parse()?,
+impl From<TransactionModel> for Transaction {
+    fn from(value: TransactionModel) -> Self {
+        Self {
+            id: value.id.into_uuid(),
             date: value.date,
-            payee_id: value.payee_id.parse()?,
+            payee_id: value.payee_id.into_uuid(),
             amount: value.amount,
-            bank_account_id: value.bank_account_id.parse()?,
-            budget_id: value.budget_id.parse()?,
-        })
+            bank_account_id: value.bank_account_id.into(),
+            budget_id: value.budget_id.into(),
+        }
     }
 }
 
@@ -75,27 +74,24 @@ pub async fn update(db_pool: &MySqlPool, transaction: Transaction) -> Result<(),
 }
 
 pub async fn get(db_pool: &MySqlPool, bank_account_id: Uuid) -> Result<Box<[Transaction]>, Error> {
-    let transactions = sqlx::query_as!(
-        TransactionModel,
-        "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE bank_account_id = ?", bank_account_id.as_simple())
+    let transactions = sqlx::query_as::<MySql, TransactionModel>(
+        "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE bank_account_id = ?").bind(bank_account_id.simple())
         .fetch_all(db_pool)
         .await?
         .into_iter()
-        .map(|transaction| transaction.try_into().unwrap())
+        .map(Into::into)
         .collect();
 
     Ok(transactions)
 }
 
 pub async fn get_single(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<Transaction, Error> {
-    sqlx::query_as!(
-        TransactionModel,
-        "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE id = ?", transaction_id.as_simple())
+    Ok(sqlx::query_as::<MySql, TransactionModel>(
+        "SELECT id, amount, date, payee_id, bank_account_id, budget_id FROM Transactions WHERE id = ?").bind(transaction_id.simple())
         .fetch_optional(db_pool)
         .await?
         .ok_or(Error::NotFound)?
-        .try_into()
-        .map_err(|e| Error::MappingError { error: e })
+        .into())
 }
 
 pub async fn delete(db_pool: &MySqlPool, transaction_id: Uuid) -> Result<(), Error> {

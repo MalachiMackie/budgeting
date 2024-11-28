@@ -1,18 +1,28 @@
-use std::{collections::HashMap, hash::RandomState, str::FromStr};
+use std::{collections::HashMap, hash::RandomState};
 
 use anyhow::bail;
-use sqlx::MySqlPool;
+use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
 use crate::models::{Schedule, User};
 
 use super::{schedule, Error};
 
+#[derive(FromRow)]
 struct UserDbModel {
-    id: String,
+    id: uuid::fmt::Simple,
     name: String,
     email: String,
-    pay_schedule_id: Option<String>,
+    pay_schedule_id: Option<uuid::fmt::Simple>,
+}
+
+impl TryInto<User> for (Option<Schedule>, UserDbModel) {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<User, Self::Error> {
+        let (maybe_schedule, user) = self;
+        (user, maybe_schedule).try_into()
+    }
 }
 
 impl TryInto<User> for (UserDbModel, Option<Schedule>) {
@@ -20,15 +30,17 @@ impl TryInto<User> for (UserDbModel, Option<Schedule>) {
 
     fn try_into(self) -> Result<User, Self::Error> {
         let (user_db_model, schedule) = self;
-        let id = Uuid::parse_str(&user_db_model.id)?;
 
         if let (Some(pay_schedule_id), None) = (user_db_model.pay_schedule_id, &schedule) {
-            bail!("Missing schedule with id {pay_schedule_id} for user id {id}");
+            bail!(
+                "Missing schedule with id {pay_schedule_id} for user id {}",
+                user_db_model.id
+            );
         }
 
         Ok(User {
             email: user_db_model.email,
-            id,
+            id: user_db_model.id.into_uuid(),
             name: user_db_model.name,
             pay_frequency: schedule,
         })
@@ -36,18 +48,15 @@ impl TryInto<User> for (UserDbModel, Option<Schedule>) {
 }
 
 pub async fn get(db_pool: &MySqlPool) -> Result<Box<[User]>, Error> {
-    let user_db_models = sqlx::query_as!(
-        UserDbModel,
-        "SELECT id, email, name, pay_schedule_id FROM Users"
-    )
-    .fetch_all(db_pool)
-    .await?;
+    let user_db_models =
+        sqlx::query_as::<MySql, UserDbModel>("SELECT id, email, name, pay_schedule_id FROM Users")
+            .fetch_all(db_pool)
+            .await?;
 
-    let schedule_ids = user_db_models
+    let schedule_ids: Vec<_> = user_db_models
         .iter()
-        .filter_map(|x| x.pay_schedule_id.as_ref().map(|y| y.parse()))
-        .collect::<Result<Vec<Uuid>, _>>()
-        .map_err(|err| Error::MappingError { error: err.into() })?;
+        .filter_map(|x| x.pay_schedule_id.map(uuid::fmt::Simple::into_uuid))
+        .collect();
 
     let schedules: Vec<_> = schedule::get_by_ids(db_pool, &schedule_ids).await?.into();
 
@@ -59,17 +68,12 @@ pub async fn get(db_pool: &MySqlPool) -> Result<Box<[User]>, Error> {
     let users = user_db_models
         .into_iter()
         .map(|user| {
-            user.pay_schedule_id
-                .as_ref()
-                .map(|x| x.parse())
-                .transpose()
-                .map(|maybe_id: Option<Uuid>| {
-                    (user, maybe_id.and_then(|id| schedules_map.remove(&id)))
-                })
+            (
+                user.pay_schedule_id
+                    .and_then(|x| schedules_map.remove(x.as_uuid())),
+                user,
+            )
         })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| Error::MappingError { error: e.into() })?
-        .into_iter()
         .map(TryInto::try_into)
         .collect::<Result<Box<[User]>, _>>()
         .map_err(|e| Error::MappingError { error: e })?;
@@ -78,24 +82,16 @@ pub async fn get(db_pool: &MySqlPool) -> Result<Box<[User]>, Error> {
 }
 
 pub async fn get_single(db_pool: &MySqlPool, user_id: Uuid) -> Result<User, Error> {
-    let db_model = sqlx::query_as!(
-        UserDbModel,
+    let db_model = sqlx::query_as::<MySql, UserDbModel>(
         "SELECT id, name, email, pay_schedule_id FROM Users WHERE id = ?",
-        user_id.as_simple()
     )
+    .bind(user_id.simple())
     .fetch_optional(db_pool)
     .await?
     .ok_or(Error::NotFound)?;
 
-    let schedule_id: Option<Uuid> = db_model
-        .pay_schedule_id
-        .as_ref()
-        .map(|id| id.parse())
-        .transpose()
-        .map_err(|err: <Uuid as FromStr>::Err| Error::MappingError { error: err.into() })?;
-
-    let schedule = if let Some(schedule_id) = schedule_id {
-        Some(schedule::get_single(db_pool, schedule_id).await?)
+    let schedule = if let Some(schedule_id) = db_model.pay_schedule_id {
+        Some(schedule::get_single(db_pool, schedule_id.into_uuid()).await?)
     } else {
         None
     };

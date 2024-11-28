@@ -12,13 +12,13 @@ use super::{schedule, Error};
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
 struct BudgetDbModel {
-    id: String,
+    id: uuid::fmt::Simple,
     name: String,
     target_type: Option<String>,
     repeating_target_type: Option<String>,
     target_amount: Option<Decimal>,
-    target_schedule_id: Option<String>,
-    user_id: String,
+    target_schedule_id: Option<uuid::fmt::Simple>,
+    user_id: uuid::fmt::Simple,
     #[sqlx(skip)]
     assignments: Vec<BudgetAssignmentDbModel>,
 }
@@ -49,17 +49,17 @@ impl From<Budget> for BudgetDbModel {
                     Some(target.to_string()),
                     Some(repeating_type.to_string()),
                     Some(*target_amount),
-                    Some(schedule.id.as_simple().to_string()),
+                    Some(schedule.id.simple()),
                 ),
             };
         Self {
-            id: value.id.as_simple().to_string(),
+            id: value.id.simple(),
             name: value.name,
             target_type,
             repeating_target_type,
             target_amount,
             target_schedule_id,
-            user_id: value.user_id.as_simple().to_string(),
+            user_id: value.user_id.simple(),
             assignments: value
                 .assignments
                 .into_iter()
@@ -105,9 +105,9 @@ impl BudgetTarget {
 impl BudgetDbModel {
     fn try_into_budget(self, schedule: Option<Schedule>) -> Result<Budget, anyhow::Error> {
         Ok(Budget {
-            id: self.id.parse()?,
+            id: self.id.into_uuid(),
             name: self.name,
-            user_id: self.user_id.parse()?,
+            user_id: self.user_id.into_uuid(),
             target: self
                 .target_type
                 .map(|target_type| {
@@ -183,11 +183,7 @@ pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> 
     budget.assignments = assignments;
 
     let schedule = if let Some(schedule_id) = &budget.target_schedule_id {
-        let schedule_id = schedule_id
-            .parse::<Uuid>()
-            .map_err(|e| Error::MappingError { error: e.into() })?;
-
-        Some(schedule::get_single(db_pool, schedule_id).await?)
+        Some(schedule::get_single(db_pool, schedule_id.into_uuid()).await?)
     } else {
         None
     };
@@ -209,19 +205,10 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
     let mut budget_ids = Vec::new();
     for budget in budget_db_models.iter() {
         if let Some(target_schedule_id) = &budget.target_schedule_id {
-            schedule_ids.push(
-                target_schedule_id
-                    .parse::<Uuid>()
-                    .map_err(|e| Error::MappingError { error: e.into() })?,
-            );
+            schedule_ids.push(target_schedule_id.into_uuid());
         }
 
-        budget_ids.push(
-            budget
-                .id
-                .parse::<Uuid>()
-                .map_err(|e| Error::MappingError { error: e.into() })?,
-        );
+        budget_ids.push(budget.id);
     }
 
     if budget_db_models.is_empty() {
@@ -234,7 +221,7 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
 
     let mut separated = query_builder.separated(",");
     for budget_id in budget_ids {
-        separated.push_bind(budget_id.simple().to_string());
+        separated.push_bind(budget_id);
     }
     separated.push_unseparated(")");
 
@@ -262,30 +249,20 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
     let mut schedules: HashMap<_, _> = schedules
         .into_vec()
         .into_iter()
-        .map(|s| (s.id, s))
+        .map(|s| (s.id.simple(), s))
         .collect();
 
     let mut budgets = Vec::new();
 
     // I'm not clever enough to do this with just iterators
     for mut db_model in budget_db_models {
-        let schedule_id = db_model
-            .target_schedule_id
-            .as_ref()
-            .map(|s| s.parse::<Uuid>())
-            .transpose()
-            .map_err(|e| Error::MappingError { error: e.into() })?;
+        let schedule_id = db_model.target_schedule_id;
 
         // a schedule is owned by a single budget, so removing from schedules should be ok
         let schedule = schedule_id.and_then(|s| schedules.remove(&s));
 
         let assignments = assignments_by_budget_id
-            .remove(
-                &db_model
-                    .id
-                    .parse::<Uuid>()
-                    .expect("We've already successfully parsed this before"),
-            )
+            .remove(&db_model.id)
             .unwrap_or_default();
 
         db_model.assignments = assignments;
@@ -372,8 +349,8 @@ mod tests {
             let assignment_amount = dec!(15.2);
 
             let no_target = BudgetDbModel {
-                id: id.as_simple().to_string(),
-                user_id: user_id.as_simple().to_string(),
+                id: id.simple(),
+                user_id: user_id.simple(),
                 name: "hi".into(),
                 target_type: None,
                 repeating_target_type: None,
@@ -397,7 +374,7 @@ mod tests {
                 target_type: Some("Repeating".into()),
                 target_amount: Some(amount),
                 repeating_target_type: Some(RepeatingTargetType::BuildUpTo.to_string()),
-                target_schedule_id: Some(schedule_id.as_simple().to_string()),
+                target_schedule_id: Some(schedule_id.simple()),
                 ..no_target.clone()
             };
 
