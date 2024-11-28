@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sqlx::MySqlPool;
+use sqlx::{Decode, FromRow, MySql, MySqlPool, QueryBuilder};
 use uuid::Uuid;
 
-use crate::models::{Budget, BudgetTarget, Schedule};
+use crate::models::{Budget, BudgetAssignment, BudgetTarget, Schedule};
 
 use super::{schedule, Error};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromRow)]
 struct BudgetDbModel {
     id: String,
     name: String,
@@ -18,6 +19,16 @@ struct BudgetDbModel {
     target_amount: Option<Decimal>,
     target_schedule_id: Option<String>,
     user_id: String,
+    #[sqlx(skip)]
+    assignments: Vec<BudgetAssignmentDbModel>,
+}
+
+#[derive(Clone, Debug, PartialEq, FromRow)]
+struct BudgetAssignmentDbModel {
+    budget_id: Uuid,
+    id: Uuid,
+    amount: Decimal,
+    date: NaiveDate,
 }
 
 impl From<Budget> for BudgetDbModel {
@@ -49,6 +60,16 @@ impl From<Budget> for BudgetDbModel {
             target_amount,
             target_schedule_id,
             user_id: value.user_id.as_simple().to_string(),
+            assignments: value
+                .assignments
+                .into_iter()
+                .map(|assignment| BudgetAssignmentDbModel {
+                    budget_id: value.id,
+                    id: assignment.id,
+                    amount: assignment.amount,
+                    date: assignment.date,
+                })
+                .collect(),
         }
     }
 }
@@ -98,6 +119,15 @@ impl BudgetDbModel {
                     )
                 })
                 .transpose()?,
+            assignments: self
+                .assignments
+                .into_iter()
+                .map(|assignment| BudgetAssignment {
+                    id: assignment.id,
+                    amount: assignment.amount,
+                    date: assignment.date,
+                })
+                .collect(),
         })
     }
 }
@@ -118,18 +148,36 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
         .execute(db_pool)
         .await?;
 
+    let mut query_builder =
+        sqlx::QueryBuilder::new("INSERT INTO BudgetAssignments (id, amount, date)");
+    query_builder.push_values(db_model.assignments, |mut b, assignment| {
+        b.push_bind(assignment.id.simple());
+        b.push_bind(assignment.amount);
+        b.push_bind(assignment.date);
+    });
+
+    query_builder.build().execute(db_pool).await?;
+
     Ok(())
 }
 
 pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> {
-    let budget = sqlx::query_as!(
-        BudgetDbModel,
+    let mut budget = sqlx::query_as::<MySql, BudgetDbModel>(
         "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
         FROM Budgets
-        WHERE id = ?",
-        id.as_simple()
-    ).fetch_one(db_pool)
+        WHERE id = ?").bind(id.simple()).fetch_one(db_pool)
         .await?;
+
+    let assignments = sqlx::query_as::<MySql, BudgetAssignmentDbModel>(
+        "SELECT id, amount, date, budget_id
+        FROM BudgetAssignments
+        WHERE budget_id = ?",
+    )
+    .bind(id.simple())
+    .fetch_all(db_pool)
+    .await?;
+
+    budget.assignments = assignments;
 
     let schedule = if let Some(schedule_id) = &budget.target_schedule_id {
         let schedule_id = schedule_id
@@ -147,20 +195,79 @@ pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> 
 }
 
 pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Error> {
-    let budget_db_models = sqlx::query_as!(
-        BudgetDbModel,
+    let budget_db_models = sqlx::query_as::<MySql, BudgetDbModel>(
         r"SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
         FROM Budgets
-        WHERE user_id = ?", user_id.as_simple())
+        WHERE user_id = ?").bind(user_id.simple())
         .fetch_all(db_pool)
         .await?;
 
-    let schedule_ids = budget_db_models
-        .iter()
-        .filter_map(|b| b.target_schedule_id.as_ref())
-        .map(|schedule_id| schedule_id.parse())
-        .collect::<Result<Box<[Uuid]>, _>>()
-        .map_err(|e| Error::MappingError { error: e.into() })?;
+    let mut schedule_ids = Vec::new();
+    let mut budget_ids = Vec::new();
+    for budget in budget_db_models.iter() {
+        if let Some(target_schedule_id) = &budget.target_schedule_id {
+            schedule_ids.push(
+                target_schedule_id
+                    .parse::<Uuid>()
+                    .map_err(|e| Error::MappingError { error: e.into() })?,
+            );
+        }
+
+        budget_ids.push(
+            budget
+                .id
+                .parse::<Uuid>()
+                .map_err(|e| Error::MappingError { error: e.into() })?,
+        );
+    }
+
+    if budget_db_models.is_empty() {
+        return Ok(Box::new([]));
+    }
+
+    let mut budget_ids = Vec::new();
+    let mut schedule_ids = Vec::new();
+
+    for budget in budget_db_models.iter() {
+        budget_ids.push(
+            budget
+                .id
+                .parse::<Uuid>()
+                .map_err(|e| Error::MappingError { error: e.into() })?,
+        );
+        if let Some(schedule_id) = budget.target_schedule_id {
+            schedule_ids.push(
+                schedule_id
+                    .parse::<Uuid>()
+                    .map_err(|e| Error::MappingError { error: e.into() })?,
+            );
+        }
+    }
+
+    let mut query_builder = QueryBuilder::new(
+        "SELECT id, amount, date, budget_id FROM BudgetAssignments WHERE budget_id IN (",
+    );
+
+    let mut separated = query_builder.separated(",");
+    for budget_id in budget_ids {
+        separated.push_bind(budget_id);
+    }
+    separated.push_unseparated(")");
+
+    let assignments_vec = query_builder
+        .build_query_as::<BudgetAssignmentDbModel>()
+        .fetch_all(db_pool)
+        .await?;
+
+    let mut assignments: HashMap<Uuid, Vec<_>> = HashMap::new();
+
+    for assignment in assignments_vec {
+        if let Some(assignments) = assignments.get_mut(&assignment.budget_id) {
+            assignments.push(assignment);
+        } else {
+            assignments.insert(assignment.budget_id, vec![assignment]);
+        }
+    }
 
     let schedules = if schedule_ids.is_empty() {
         Box::new([])

@@ -138,6 +138,16 @@ pub struct Budget {
     pub name: String,
     pub target: Option<BudgetTarget>,
     pub user_id: Uuid,
+    pub assignments: Vec<BudgetAssignment>,
+}
+
+#[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize, Constructor)]
+pub struct BudgetAssignment {
+    pub id: Uuid,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
+    pub date: NaiveDate,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, ToSchema)]

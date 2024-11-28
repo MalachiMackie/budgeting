@@ -3,7 +3,9 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use chrono::NaiveDate;
 use http::StatusCode;
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::MySqlPool;
 use utoipa::OpenApi;
@@ -284,6 +286,36 @@ pub async fn delete(
     }
 
     Ok(())
+}
+
+pub struct AssignToBudgetQuery {
+    pub date: NaiveDate,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/budgets/{budget_id}/assign",
+    responses(
+        (status = OK, description = "Success")
+    ),
+    params(
+        ("budget_id" = Uuid, Path,),
+        ("date" = NaiveDate, Query,),
+        ("amount" = Decimal, Query,)
+    ),
+    tag = API_TAG,
+    operation_id = "assignToBudget"
+)]
+pub async fn assign_to_budget(
+    State(db_pool): State<MySqlPool>,
+    Path(budget_id): Path<Uuid>,
+    Query(query): Query<AssignToBudgetQuery>,
+) -> Result<(), Error> {
+    let budget = db::budgets::get_single(&db_pool, budget_id)
+        .await?;
 }
 
 #[cfg(test)]
