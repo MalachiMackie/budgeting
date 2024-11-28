@@ -80,8 +80,8 @@
         "operationId": "getBankAccount",
         "parameters": [
           {
-            "name": "user_id",
-            "in": "query",
+            "name": "accountId",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string",
@@ -89,8 +89,8 @@
             }
           },
           {
-            "name": "accountId",
-            "in": "path",
+            "name": "user_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -118,8 +118,8 @@
         "operationId": "updateBankAccount",
         "parameters": [
           {
-            "name": "user_id",
-            "in": "query",
+            "name": "accountId",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string",
@@ -127,8 +127,8 @@
             }
           },
           {
-            "name": "accountId",
-            "in": "path",
+            "name": "user_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -160,8 +160,8 @@
         "operationId": "deleteBankAccount",
         "parameters": [
           {
-            "name": "user_id",
-            "in": "query",
+            "name": "accountId",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string",
@@ -169,8 +169,8 @@
             }
           },
           {
-            "name": "accountId",
-            "in": "path",
+            "name": "user_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",

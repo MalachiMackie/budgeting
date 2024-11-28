@@ -8,7 +8,7 @@ use http::StatusCode;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{IntoParams, OpenApi, ToSchema};
 use uuid::Uuid;
 
 use crate::{
@@ -45,7 +45,7 @@ pub struct Api;
 
 const API_TAG: &str = "Budgets";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct GetBudgetsQuery {
     user_id: Uuid,
 }
@@ -57,7 +57,7 @@ pub struct GetBudgetsQuery {
         (status = OK, description = "Success", body = Box<[Budget]>, content_type = "application/json")
     ),
     params(
-        ("user_id" = Uuid, Query,)
+        GetBudgetsQuery,
     ),
     tag = API_TAG,
     operation_id = "getBudgets"

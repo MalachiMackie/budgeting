@@ -6,7 +6,7 @@ use axum::{
 use http::StatusCode;
 use serde::Deserialize;
 use sqlx::MySqlPool;
-use utoipa::OpenApi;
+use utoipa::{IntoParams, OpenApi};
 use uuid::Uuid;
 
 use crate::{
@@ -24,7 +24,7 @@ pub struct Api;
 
 const API_TAG: &str = "Payees";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct GetPayeesQuery {
     user_id: Uuid,
 }
@@ -36,7 +36,7 @@ pub struct GetPayeesQuery {
         (status = OK, description = "Success", body = Box<[Payee]>, content_type = "application/json")
     ),
     params(
-        ("user_id" = Uuid, Query,),
+        GetPayeesQuery,
     ),
     tag = API_TAG,
     operation_id = "getPayees"

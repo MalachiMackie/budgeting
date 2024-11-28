@@ -6,7 +6,7 @@ use axum::{
 use http::StatusCode;
 use serde::Deserialize;
 use sqlx::MySqlPool;
-use utoipa::OpenApi;
+use utoipa::{IntoParams, OpenApi};
 use uuid::Uuid;
 
 use crate::{
@@ -55,7 +55,7 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(id)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct GetBankAccountsQuery {
     pub user_id: Uuid,
 }
@@ -67,7 +67,7 @@ pub struct GetBankAccountsQuery {
         (status = OK, description = "Success", body = Box<[BankAccount]>, content_type = "application/json")
     ),
     params(
-        ("user_id" = Uuid, Query,)
+        GetBankAccountsQuery,
     ),
     tag = API_TAG,
     operation_id = "getBankAccounts"
@@ -83,17 +83,17 @@ pub async fn get(
         .map_err(|e| e.to_app_error(anyhow!("Could not get bank accounts")))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct GetBankAccountQuery {
     user_id: Uuid,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct DeleteBankAccountQuery {
     user_id: Uuid,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct UpdateBankAccountQuery {
     user_id: Uuid,
 }
@@ -105,8 +105,8 @@ pub struct UpdateBankAccountQuery {
         (status = OK, description = "Success", body = BankAccount, content_type = "application/json")
     ),
     params(
-        ("user_id" = Uuid, Query,),
-        ("accountId" = Uuid, Path,)
+        ("accountId" = Uuid, Path,),
+        GetBankAccountQuery,
     ),
     tag = API_TAG,
     operation_id = "getBankAccount"
@@ -138,8 +138,8 @@ pub async fn get_single(
         (status = OK, description = "Success",)
     ),
     params(
-        ("user_id" = Uuid, Query,),
-        ("accountId" = Uuid, Path,)
+        ("accountId" = Uuid, Path,),
+        DeleteBankAccountQuery,
     ),
     tag = API_TAG,
     operation_id = "deleteBankAccount"
@@ -167,8 +167,8 @@ pub async fn delete(
         (status = OK, description = "Success",)
     ),
     params(
-        ("user_id" = Uuid, Query,),
-        ("accountId" = Uuid, Path,)
+        ("accountId" = Uuid, Path,),
+        UpdateBankAccountQuery,
     ),
     tag = API_TAG,
     operation_id = "updateBankAccount"
