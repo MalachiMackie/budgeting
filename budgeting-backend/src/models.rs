@@ -142,11 +142,40 @@ pub struct Budget {
 }
 
 impl Budget {
-    pub fn assign_amount(&mut self, amount: Decimal, date: NaiveDate) {
+    pub fn assign_from_transaction(&mut self, transaction: &Transaction) {
         self.assignments.push(BudgetAssignment {
+            id: Uuid::new_v4(),
+            amount: transaction.amount,
+            date: transaction.date,
+            source: BudgetAssignmentSource::Transaction { from_transaction_id: transaction.id }
+        });
+    }
+
+    pub fn move_between_budgets(
+        from: &mut Budget,
+        to: &mut Budget,
+        amount: Decimal,
+        date: NaiveDate,
+    ) {
+        let link_id = Uuid::new_v4();
+        to.assignments.push(BudgetAssignment {
             id: Uuid::new_v4(),
             amount,
             date,
+            source: BudgetAssignmentSource::OtherBudget {
+                from_budget_id: from.id,
+                link_id,
+            },
+        });
+        // add reverse assignment
+        from.assignments.push(BudgetAssignment {
+            id: Uuid::new_v4(),
+            amount: -amount,
+            date,
+            source: BudgetAssignmentSource::OtherBudget {
+                from_budget_id: to.id,
+                link_id,
+            },
         });
     }
 }
@@ -158,6 +187,14 @@ pub struct BudgetAssignment {
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub date: NaiveDate,
+    pub source: BudgetAssignmentSource,
+}
+
+#[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum BudgetAssignmentSource {
+    OtherBudget { from_budget_id: Uuid, link_id: Uuid },
+    Transaction { from_transaction_id: Uuid },
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, ToSchema)]
@@ -313,4 +350,12 @@ pub struct UpdateBankAccountRequest {
 #[derive(Serialize, Deserialize, ToSchema, Constructor)]
 pub struct UpdatePayeeRequest {
     pub name: String,
+}
+
+#[derive(ToSchema, Serialize, Deserialize)]
+pub struct TransferBudgetRequest {
+    pub date: NaiveDate,
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
 }

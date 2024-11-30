@@ -118,29 +118,28 @@ pub async fn update(db_pool: &MySqlPool, id: Uuid, name: &str) -> Result<(), Err
 
 #[cfg(test)]
 mod tests {
-    use std::sync::OnceLock;
+    use std::sync::LazyLock;
 
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
     use crate::{
         db,
-        extensions::{decimal::DecimalExt, once_lock::OnceLockExt},
+        extensions::decimal::DecimalExt,
         models::{Budget, CreatePayeeRequest, CreateTransactionRequest, User},
     };
 
     use super::*;
 
-    static USER_ID: OnceLock<Uuid> = OnceLock::new();
-    static BANK_ACCOUNT_ID: OnceLock<Uuid> = OnceLock::new();
-    static PAYEE_ID: OnceLock<Uuid> = OnceLock::new();
-    static BUDGET_ID: OnceLock<Uuid> = OnceLock::new();
+    static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+    static BANK_ACCOUNT_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+    static PAYEE_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+    static BUDGET_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
     async fn test_init(db_pool: &MySqlPool) {
-        let user_id = *USER_ID.init_uuid();
-        let payee_id = *PAYEE_ID.init_uuid();
-        let budget_id = *BUDGET_ID.init_uuid();
-        _ = BANK_ACCOUNT_ID.init_uuid();
+        let user_id = *USER_ID;
+        let payee_id = *PAYEE_ID;
+        let budget_id = *BUDGET_ID;
 
         db::users::create(
             db_pool,
@@ -169,8 +168,8 @@ mod tests {
     pub async fn test_create_and_get_all(db_pool: MySqlPool) {
         test_init(&db_pool).await;
 
-        let bank_account_id = *BANK_ACCOUNT_ID.get().unwrap();
-        let user_id = *USER_ID.get().unwrap();
+        let bank_account_id = *BANK_ACCOUNT_ID;
+        let user_id = *USER_ID;
 
         let result = create(
             &db_pool,
@@ -219,10 +218,10 @@ mod tests {
     pub async fn test_create_and_get_single(db_pool: MySqlPool) {
         test_init(&db_pool).await;
 
-        let bank_account_id = *BANK_ACCOUNT_ID.get().unwrap();
-        let user_id = *USER_ID.get().unwrap();
-        let payee_id = *PAYEE_ID.get().unwrap();
-        let budget_id = *BUDGET_ID.get().unwrap();
+        let bank_account_id = *BANK_ACCOUNT_ID;
+        let user_id = *USER_ID;
+        let payee_id = *PAYEE_ID;
+        let budget_id = *BUDGET_ID;
 
         let result = create(
             &db_pool,
@@ -285,7 +284,7 @@ mod tests {
     pub async fn test_delete(db_pool: MySqlPool) {
         test_init(&db_pool).await;
 
-        let user_id = *USER_ID.get().unwrap();
+        let user_id = *USER_ID;
         let id = Uuid::new_v4();
 
         create(
@@ -307,7 +306,7 @@ mod tests {
     pub async fn test_update(db_pool: MySqlPool) {
         test_init(&db_pool).await;
 
-        let user_id = *USER_ID.get().unwrap();
+        let user_id = *USER_ID;
         let id = Uuid::new_v4();
 
         create(

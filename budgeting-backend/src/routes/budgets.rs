@@ -16,14 +16,15 @@ use crate::{
     models::{
         Budget, BudgetAssignment, BudgetTarget, CreateBudgetRequest, CreateBudgetTargetRequest,
         CreateScheduleRequest, RepeatingTargetType, Schedule, SchedulePeriod, SchedulePeriodType,
-        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest,
+        UpdateBudgetRequest, UpdateBudgetTargetRequest, UpdateScheduleRequest, BudgetAssignmentSource
     },
     AppError,
 };
+use crate::models::TransferBudgetRequest;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, create, update, delete, assign_to_budget),
+    paths(get, create, update, delete, transfer_between_budgets),
     components(schemas(
         Budget,
         CreateBudgetRequest,
@@ -37,8 +38,9 @@ use crate::{
         UpdateBudgetTargetRequest,
         CreateScheduleRequest,
         UpdateScheduleRequest,
-        AssignToBudgetRequest,
-        BudgetAssignment
+        TransferBudgetRequest,
+        BudgetAssignment,
+        BudgetAssignmentSource
     ))
 )]
 pub struct Api;
@@ -292,39 +294,51 @@ pub async fn delete(
     Ok(())
 }
 
-#[derive(ToSchema, Serialize, Deserialize)]
-pub struct AssignToBudgetRequest {
-    pub date: NaiveDate,
-    #[schema(value_type = f32)]
-    #[serde(with = "rust_decimal::serde::float")]
-    pub amount: Decimal,
-}
-
 #[utoipa::path(
     put,
-    path = "/api/budgets/{budget_id}/assign",
+    path = "/api/budgets/{budgetId}/transfer-to/{otherBudgetId}",
     responses(
         (status = OK, description = "Success")
     ),
-    request_body = AssignToBudgetRequest,
+    request_body = TransferBudgetRequest,
     params(
-        ("budget_id" = Uuid, Path,),
+        ("budgetId" = Uuid, Path,),
+        ("otherBudgetId" = Uuid, Path,),
     ),
     tag = API_TAG,
-    operation_id = "assignToBudget"
+    operation_id = "transferBetweenBudgets"
 )]
-pub async fn assign_to_budget(
+pub async fn transfer_between_budgets(
     State(db_pool): State<MySqlPool>,
-    Path(budget_id): Path<Uuid>,
-    Json(query): Json<AssignToBudgetRequest>,
+    Path((from_budget_id, to_budget_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<TransferBudgetRequest>,
 ) -> Result<(), AppError> {
-    let mut budget = db::budgets::get_single(&db_pool, budget_id)
+    let mut budgets = Vec::from(
+        db::budgets::get_by_ids(&db_pool, &[from_budget_id, to_budget_id])
+            .await
+            .map_err(|e| e.to_app_error(anyhow!("Failed to get budget to assign to")))?,
+    );
+
+    if budgets.len() != 2 {
+        return Err(AppError::NotFound(anyhow!(
+            "Could not find either one or both budgets with ids {} and {}",
+            from_budget_id,
+            to_budget_id
+        )));
+    }
+
+    let (mut from, mut to) = if budgets[0].id == from_budget_id {
+        (budgets.remove(0), budgets.remove(0))
+    } else {
+        (budgets.remove(1), budgets.remove(0))
+    };
+
+    Budget::move_between_budgets(&mut from, &mut to, request.amount, request.date);
+
+    db::budgets::update(&db_pool, from)
         .await
-        .map_err(|e| e.to_app_error(anyhow!("Failed to get budget to assign to")))?;
-
-    budget.assign_amount(query.amount, query.date);
-
-    db::budgets::update(&db_pool, budget)
+        .map_err(|e| e.to_app_error(anyhow!("Failed to update budget")))?;
+    db::budgets::update(&db_pool, to)
         .await
         .map_err(|e| e.to_app_error(anyhow!("Failed to update budget")))?;
 
@@ -341,7 +355,7 @@ mod tests {
         use chrono::NaiveDate;
         use rust_decimal_macros::dec;
 
-        use crate::models::{BudgetAssignment, UpdateScheduleRequest, User};
+        use crate::models::{BudgetAssignment, BudgetAssignmentSource, UpdateScheduleRequest, User};
 
         use super::*;
 
@@ -356,6 +370,8 @@ mod tests {
         static ASSIGNMENT_ID1: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
         static ASSIGNMENT_ID2: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
         static ASSIGNMENT_ID3: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+        static OTHER_BUDGET_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+        static ASSIGNMENT_LINK_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
         async fn test_init(db_pool: &MySqlPool) {
             let budget_no_target_id = *BUDGET_NO_TARGET_ID;
@@ -365,15 +381,25 @@ mod tests {
             let assignment_id1 = *ASSIGNMENT_ID1;
             let assignment_id2 = *ASSIGNMENT_ID2;
             let assignment_id3 = *ASSIGNMENT_ID3;
-
+            let other_budget_id = *OTHER_BUDGET_ID;
             let user_id = *USER_ID;
+            let assignment_link_id = *ASSIGNMENT_LINK_ID;
 
             db::users::create(
                 db_pool,
                 User::new(user_id, "name".into(), "email@email.com".into(), None),
-            )
-            .await
-            .unwrap();
+            ).await.unwrap();
+
+            db::budgets::create(
+                db_pool,
+                Budget {
+                    id: other_budget_id,
+                    assignments: vec![],
+                    name: "name".into(),
+                    target: None,
+                    user_id,
+                },
+            ).await.unwrap();
 
             let no_target = BUDGET_NO_TARGET
                 .get_or_init(|| Budget {
@@ -385,6 +411,11 @@ mod tests {
                         id: assignment_id1,
                         amount: dec!(10),
                         date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget
+                        {
+                            from_budget_id: other_budget_id,
+                            link_id: assignment_link_id
+                        }
                     }],
                 })
                 .clone();
@@ -401,6 +432,11 @@ mod tests {
                         id: assignment_id2,
                         amount: dec!(10),
                         date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget
+                        {
+                            from_budget_id: other_budget_id,
+                            link_id: assignment_link_id
+                        }
                     }],
                 })
                 .clone();
@@ -426,6 +462,11 @@ mod tests {
                         id: assignment_id3,
                         amount: dec!(10),
                         date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget
+                        {
+                            from_budget_id: other_budget_id,
+                            link_id: assignment_link_id
+                        }
                     }],
                 })
                 .clone();
@@ -467,6 +508,10 @@ mod tests {
                     id: *ASSIGNMENT_ID1,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *OTHER_BUDGET_ID,
+                        link_id: *ASSIGNMENT_LINK_ID
+                    }
                 }],
             };
 
@@ -520,6 +565,10 @@ mod tests {
                     id: *ASSIGNMENT_ID2,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *OTHER_BUDGET_ID,
+                        link_id: *ASSIGNMENT_LINK_ID
+                    }
                 }],
             };
 
@@ -571,6 +620,10 @@ mod tests {
                     id: *ASSIGNMENT_ID1,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *OTHER_BUDGET_ID,
+                        link_id: *ASSIGNMENT_LINK_ID
+                    }
                 }],
             };
 
@@ -606,6 +659,10 @@ mod tests {
                     id: *ASSIGNMENT_ID3,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *OTHER_BUDGET_ID,
+                        link_id: *ASSIGNMENT_LINK_ID
+                    }
                 }],
             };
 
@@ -645,6 +702,10 @@ mod tests {
                     id: *ASSIGNMENT_ID3,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *OTHER_BUDGET_ID,
+                        link_id: *ASSIGNMENT_LINK_ID
+                    }
                 }],
             };
 
@@ -652,14 +713,16 @@ mod tests {
         }
     }
 
-    mod assign_tests {
+    mod transfer_between_budget_tests {
         use std::sync::LazyLock;
 
-        use crate::models::{BudgetAssignment, User};
+        use crate::models::{BudgetAssignment, BudgetAssignmentSource, User};
 
         use super::*;
 
         static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+        static BUDGET1_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+        static BUDGET2_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
         async fn test_init(db_pool: &MySqlPool) {
             let user_id = *USER_ID;
@@ -670,94 +733,126 @@ mod tests {
             )
             .await
             .unwrap();
+            
+            db::budgets::create(db_pool, Budget {
+                id: *BUDGET1_ID,
+                assignments: vec![],
+                name: "name".into(),
+                target: None,
+                user_id
+            }).await.unwrap();
+
+            db::budgets::create(db_pool, Budget {
+                id: *BUDGET2_ID,
+                assignments: vec![],
+                name: "name".into(),
+                target: None,
+                user_id
+            }).await.unwrap();
         }
 
         #[sqlx::test]
         pub async fn existing_assignment_test(db_pool: MySqlPool) {
             test_init(&db_pool).await;
 
-            let budget_id = Uuid::new_v4();
-            let mut budget = Budget {
-                id: budget_id,
-                user_id: *USER_ID,
-                assignments: vec![BudgetAssignment {
-                    id: Uuid::new_v4(),
-                    amount: Decimal::ZERO,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 27).unwrap(),
-                }],
-                name: "name".into(),
-                target: None,
-            };
+            let link_id = Uuid::new_v4();
+            let mut budget1 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
+            let mut budget2 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
+            budget1.assignments.push(BudgetAssignment {
+                id: Uuid::new_v4(),
+                amount: Decimal::ZERO,
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                source: BudgetAssignmentSource::OtherBudget {
+                    from_budget_id: *BUDGET2_ID,
+                    link_id
+                }
+            });
 
-            db::budgets::create(&db_pool, budget.clone()).await.unwrap();
+            budget2.assignments.push(BudgetAssignment {
+                id: Uuid::new_v4(),
+                amount: Decimal::ZERO,
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                source: BudgetAssignmentSource::OtherBudget {
+                    from_budget_id: *BUDGET1_ID,
+                    link_id
+                }
+            });
 
-            assign_to_budget(
+            db::budgets::update(&db_pool, budget1).await.unwrap();
+            db::budgets::update(&db_pool, budget2).await.unwrap();
+
+            transfer_between_budgets(
                 State(db_pool.clone()),
-                Path(budget_id),
-                Json(AssignToBudgetRequest {
+                Path((*BUDGET1_ID, *BUDGET2_ID)),
+                Json(TransferBudgetRequest {
                     amount: Decimal::ZERO,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
                 }),
             )
             .await
             .unwrap();
 
-            budget.assignments[0].id = Uuid::nil();
+            let mut fetched1 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
+            let mut fetched2 = db::budgets::get_single(&db_pool, *BUDGET2_ID).await.unwrap();
 
-            budget.assignments.push(BudgetAssignment {
-                id: Uuid::nil(),
-                amount: Decimal::ZERO,
-                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-            });
+            fetched1.assignments.sort_by_key(|a| a.date);
+            fetched2.assignments.sort_by_key(|a| a.date);
 
-            let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+            assert_eq!(fetched1.assignments.len(), 2);
+            assert_eq!(fetched2.assignments.len(), 2);
 
-            assert_eq!(fetched.assignments.len(), 2);
-
-            fetched.assignments[0].id = Uuid::nil();
-            fetched.assignments[1].id = Uuid::nil();
-
-            assert_eq!(fetched, budget);
+            let BudgetAssignmentSource::OtherBudget {from_budget_id: from_budget_id1, link_id: link_id1} = fetched1.assignments[1].source else {
+                panic!("expected assignment source to be OtherBudget");
+            };
+            let BudgetAssignmentSource::OtherBudget {from_budget_id: from_budget_id2, link_id: link_id2} = fetched2.assignments[1].source else {
+                panic!("expected assignment source to be OtherBudget");
+            };
+            assert_eq!(link_id1, link_id2);
+            assert_eq!(from_budget_id1, *BUDGET2_ID);
+            assert_eq!(from_budget_id2, *BUDGET1_ID);
+            assert_eq!(fetched1.assignments[1].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched1.assignments[1].amount, Decimal::ZERO);
+            assert_eq!(fetched2.assignments[1].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched2.assignments[1].amount, Decimal::ZERO);
         }
 
         #[sqlx::test]
         pub async fn empty_assignment_test(db_pool: MySqlPool) {
             test_init(&db_pool).await;
 
-            let budget_id = Uuid::new_v4();
-            let mut budget = Budget {
-                id: budget_id,
-                user_id: *USER_ID,
-                assignments: vec![],
-                name: "name".into(),
-                target: None,
-            };
-
-            db::budgets::create(&db_pool, budget.clone()).await.unwrap();
-
-            assign_to_budget(
+            transfer_between_budgets(
                 State(db_pool.clone()),
-                Path(budget_id),
-                Json(AssignToBudgetRequest {
+                Path((*BUDGET1_ID, *BUDGET2_ID)),
+                Json(TransferBudgetRequest {
                     amount: Decimal::ZERO,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
                 }),
             )
             .await
             .unwrap();
 
-            budget.assignments.push(BudgetAssignment {
-                id: Uuid::nil(),
-                amount: Decimal::ZERO,
-                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-            });
+            let mut fetched1 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
+            let mut fetched2 = db::budgets::get_single(&db_pool, *BUDGET2_ID).await.unwrap();
 
-            let mut fetched = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
-            assert_eq!(fetched.assignments.len(), 1);
+            fetched1.assignments.sort_by_key(|a| a.date);
+            fetched2.assignments.sort_by_key(|a| a.date);
 
-            fetched.assignments[0].id = Uuid::nil();
+            assert_eq!(fetched1.assignments.len(), 1);
+            assert_eq!(fetched2.assignments.len(), 1);
 
-            assert_eq!(fetched, budget);
+            let BudgetAssignmentSource::OtherBudget {from_budget_id: from_budget_id1, link_id: link_id1} = fetched1.assignments[0].source else {
+                panic!("expected assignment source to be OtherBudget");
+            };
+            let BudgetAssignmentSource::OtherBudget {from_budget_id: from_budget_id2, link_id: link_id2} = fetched2.assignments[0].source else {
+                panic!("expected assignment source to be OtherBudget");
+            };
+            assert_eq!(link_id1, link_id2);
+            assert_eq!(from_budget_id1, *BUDGET2_ID);
+            assert_eq!(from_budget_id2, *BUDGET1_ID);
+            assert_eq!(fetched1.assignments[0].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched1.assignments[0].amount, Decimal::ZERO);
+            assert_eq!(fetched2.assignments[0].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched2.assignments[0].amount, Decimal::ZERO);
         }
     }
 

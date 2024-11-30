@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use anyhow::anyhow;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sqlx::{FromRow, MySql, MySqlPool, QueryBuilder};
+use sqlx::{prelude::Type, FromRow, MySql, MySqlPool, QueryBuilder};
 use uuid::Uuid;
 
-use crate::models::{Budget, BudgetAssignment, BudgetTarget, Schedule};
+use crate::models::{Budget, BudgetAssignment, BudgetAssignmentSource, BudgetTarget, Schedule};
 
 use super::{schedule, Error};
 
@@ -29,6 +30,37 @@ struct BudgetAssignmentDbModel {
     id: uuid::fmt::Simple,
     amount: Decimal,
     date: NaiveDate,
+    assignment_type: String,
+    from_budget_id: Option<uuid::fmt::Simple>,
+    link_id: Option<uuid::fmt::Simple>,
+    from_transaction_id: Option<uuid::fmt::Simple>,
+}
+
+#[derive(Clone, Debug, PartialEq, Type)]
+enum BudgetAssignmentType {
+    MoveBetweenBudgets,
+    FromTransaction,
+}
+
+impl FromStr for BudgetAssignmentType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "MoveBetweenBudgets" => Ok(BudgetAssignmentType::MoveBetweenBudgets),
+            "FromTransaction" => Ok(BudgetAssignmentType::FromTransaction),
+            _ => Err(anyhow!("{s} is not a valid BudgetAssignmentType"))
+        }
+    }
+}
+
+impl Display for BudgetAssignmentType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BudgetAssignmentType::MoveBetweenBudgets => f.write_str("MoveBetweenBudgets"),
+            BudgetAssignmentType::FromTransaction => f.write_str("FromTransaction"),
+        }
+    }
 }
 
 impl From<Budget> for BudgetDbModel {
@@ -68,6 +100,34 @@ impl From<Budget> for BudgetDbModel {
                     id: assignment.id.simple(),
                     amount: assignment.amount,
                     date: assignment.date,
+                    assignment_type: match &assignment.source {
+                        BudgetAssignmentSource::OtherBudget { .. } => {
+                            "MoveBetweenBudgets".into()
+                        }
+                        BudgetAssignmentSource::Transaction { .. } => {
+                            "FromTransaction".into()
+                        }
+                    },
+                    link_id: if let BudgetAssignmentSource::OtherBudget { link_id, .. } = &assignment.source {
+                        Some(link_id.simple())
+                    } else {
+                        None
+                    },
+                    from_budget_id: if let BudgetAssignmentSource::OtherBudget { from_budget_id, .. } =
+                        &assignment.source
+                    {
+                        Some(from_budget_id.simple())
+                    } else {
+                        None
+                    },
+                    from_transaction_id: if let BudgetAssignmentSource::Transaction {
+                        from_transaction_id,
+                    } = &assignment.source
+                    {
+                        Some(from_transaction_id.simple())
+                    } else {
+                        None
+                    },
                 })
                 .collect(),
         }
@@ -122,13 +182,41 @@ impl BudgetDbModel {
             assignments: self
                 .assignments
                 .into_iter()
-                .map(|assignment| BudgetAssignment {
-                    id: assignment.id.into_uuid(),
-                    amount: assignment.amount,
-                    date: assignment.date,
-                })
-                .collect(),
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
         })
+    }
+}
+
+impl TryInto<BudgetAssignment> for BudgetAssignmentDbModel {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<BudgetAssignment, Self::Error> {
+        let assignment_type: BudgetAssignmentType = self.assignment_type.parse()?;
+        match (assignment_type, self.from_budget_id, self.from_transaction_id, self.link_id) {
+            (BudgetAssignmentType::FromTransaction, _, Some(from_transaction_id), _) =>
+                Ok(BudgetAssignment {
+                    id: self.id.into(),
+                    date: self.date,
+                    amount: self.amount,
+                    source: BudgetAssignmentSource::Transaction {
+                        from_transaction_id: from_transaction_id.into_uuid(),
+                    }
+                }),
+            (BudgetAssignmentType::FromTransaction, _, _, _) => Err(anyhow!("from_transaction_id must be populated for FromTransaction assignment type")),
+            (BudgetAssignmentType::MoveBetweenBudgets, Some(from_budget_id), _, Some(link_id)) => {
+                Ok(BudgetAssignment {
+                    id: self.id.into(),
+                    date: self.date,
+                    amount: self.amount,
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: from_budget_id.into(),
+                        link_id: link_id.into(),
+                    }
+                })
+            },
+            (BudgetAssignmentType::MoveBetweenBudgets, _, _, _) => Err(anyhow!("from_budget_id and link_id must be populated for MoveBetweenBudgets assignment type")),
+        }
     }
 }
 
@@ -150,12 +238,16 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
 
     if !db_model.assignments.is_empty() {
         let mut query_builder =
-            sqlx::QueryBuilder::new("INSERT INTO BudgetAssignments (id, amount, date, budget_id)");
+            QueryBuilder::new("INSERT INTO BudgetAssignments (id, amount, date, budget_id, assignment_type, from_budget_id, from_transaction_id, link_id)");
         query_builder.push_values(db_model.assignments, |mut b, assignment| {
             b.push_bind(assignment.id)
                 .push_bind(assignment.amount)
                 .push_bind(assignment.date)
-                .push_bind(assignment.budget_id);
+                .push_bind(assignment.budget_id)
+                .push_bind(assignment.assignment_type.to_string())
+                .push_bind(assignment.from_budget_id)
+                .push_bind(assignment.from_transaction_id)
+                .push_bind(assignment.link_id);
         });
 
         query_builder.build().execute(db_pool).await?;
@@ -164,19 +256,40 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
     Ok(())
 }
 
+pub async fn get_by_ids(db_pool: &MySqlPool, ids: &[Uuid]) -> Result<Box<[Budget]>, Error> {
+    let mut query_builder = QueryBuilder::new(
+        "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
+        FROM Budgets
+        WHERE id IN (");
+
+    let mut separated = query_builder.separated(',');
+    for id in ids {
+        separated.push_bind(id.as_simple());
+    }
+
+    separated.push_unseparated(')');
+
+    let budget_db_models = query_builder
+        .build_query_as::<BudgetDbModel>()
+        .fetch_all(db_pool)
+        .await?;
+
+    get_budgets_from_db_models(db_pool, budget_db_models).await
+}
+
 pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> {
     let mut budget = sqlx::query_as::<MySql, BudgetDbModel>(
         "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
         FROM Budgets
-        WHERE id = ?").bind(id.simple().to_string()).fetch_one(db_pool)
+        WHERE id = ?").bind(id.simple()).fetch_one(db_pool)
         .await?;
 
     let assignments = sqlx::query_as::<MySql, BudgetAssignmentDbModel>(
-        "SELECT id, amount, date, budget_id
+        "SELECT id, amount, date, budget_id, assignment_type, from_budget_id, from_transaction_id, link_id
         FROM BudgetAssignments
         WHERE budget_id = ?",
     )
-    .bind(id.simple().to_string())
+    .bind(id.simple())
     .fetch_all(db_pool)
     .await?;
 
@@ -193,17 +306,13 @@ pub async fn get_single(db_pool: &MySqlPool, id: Uuid) -> Result<Budget, Error> 
         .map_err(|e| Error::MappingError { error: e })
 }
 
-pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Error> {
-    let budget_db_models = sqlx::query_as::<MySql, BudgetDbModel>(
-        r"SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
-        FROM Budgets
-        WHERE user_id = ?").bind(user_id.simple())
-        .fetch_all(db_pool)
-        .await?;
-
+async fn get_budgets_from_db_models(
+    db_pool: &MySqlPool,
+    budget_db_models: Vec<BudgetDbModel>,
+) -> Result<Box<[Budget]>, Error> {
     let mut schedule_ids = Vec::new();
     let mut budget_ids = Vec::new();
-    for budget in budget_db_models.iter() {
+    for budget in &budget_db_models {
         if let Some(target_schedule_id) = &budget.target_schedule_id {
             schedule_ids.push(target_schedule_id.into_uuid());
         }
@@ -216,7 +325,7 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
     }
 
     let mut query_builder = QueryBuilder::new(
-        "SELECT id, amount, date, budget_id FROM BudgetAssignments WHERE budget_id IN (",
+        "SELECT id, amount, date, budget_id, assignment_type, from_budget_id, from_transaction_id, link_id FROM BudgetAssignments WHERE budget_id IN (",
     );
 
     let mut separated = query_builder.separated(",");
@@ -277,6 +386,17 @@ pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Er
     Ok(budgets.into_boxed_slice())
 }
 
+pub async fn get(db_pool: &MySqlPool, user_id: Uuid) -> Result<Box<[Budget]>, Error> {
+    let budget_db_models = sqlx::query_as::<MySql, BudgetDbModel>(
+        r"SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
+        FROM Budgets
+        WHERE user_id = ?").bind(user_id.simple())
+        .fetch_all(db_pool)
+        .await?;
+
+    get_budgets_from_db_models(db_pool, budget_db_models).await
+}
+
 pub async fn delete(db_pool: &MySqlPool, id: Uuid) -> Result<(), Error> {
     sqlx::query!(
         "DELETE FROM BudgetAssignments WHERE budget_id = ?",
@@ -310,14 +430,18 @@ pub async fn update(db_pool: &MySqlPool, budget: Budget) -> Result<(), Error> {
     .execute(db_pool)
     .await?;
 
-    if db_model.assignments.len() > 0 {
+    if !db_model.assignments.is_empty() {
         let mut query_builder =
-            QueryBuilder::new("INSERT IGNORE INTO BudgetAssignments (id, amount, date, budget_id)");
+            QueryBuilder::new("INSERT IGNORE INTO BudgetAssignments (id, amount, date, budget_id, assignment_type, from_budget_id, from_transaction_id, link_id)");
         query_builder.push_values(db_model.assignments, |mut b, assignment| {
             b.push_bind(assignment.id)
                 .push_bind(assignment.amount)
                 .push_bind(assignment.date)
-                .push_bind(assignment.budget_id);
+                .push_bind(assignment.budget_id)
+                .push_bind(assignment.assignment_type.to_string())
+                .push_bind(assignment.from_budget_id)
+                .push_bind(assignment.from_transaction_id)
+                .push_bind(assignment.link_id);
         });
 
         query_builder.build().execute(db_pool).await?;
@@ -345,8 +469,22 @@ mod tests {
             let user_id = Uuid::new_v4();
             let amount = Decimal::from_f32(10.1).unwrap();
             let schedule_id = Uuid::new_v4();
-            let assignment_id = Uuid::new_v4();
+            let assignment_id1 = Uuid::new_v4();
+            let assignment_id2 = Uuid::new_v4();
             let assignment_amount = dec!(15.2);
+            let from_budget_id = Uuid::new_v4();
+            let from_transaction_id = Uuid::new_v4();
+
+            let default_assignment = BudgetAssignment {
+                id: assignment_id1,
+                amount: assignment_amount,
+                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                source: BudgetAssignmentSource::Transaction {
+                    from_transaction_id,
+                },
+            };
+
+            let link_id = Uuid::new_v4();
 
             let no_target = BudgetDbModel {
                 id: id.simple(),
@@ -356,12 +494,30 @@ mod tests {
                 repeating_target_type: None,
                 target_amount: None,
                 target_schedule_id: None,
-                assignments: vec![BudgetAssignmentDbModel {
-                    id: assignment_id.simple(),
-                    amount: assignment_amount,
-                    budget_id: id.simple(),
-                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-                }],
+                assignments: vec![
+                    BudgetAssignmentDbModel {
+                        id: assignment_id1.simple(),
+                        amount: assignment_amount,
+                        budget_id: id.simple(),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        assignment_type: BudgetAssignmentType::FromTransaction.to_string(),
+                        from_budget_id: None,
+                        from_transaction_id: Some(from_transaction_id.simple()),
+                        link_id: None
+                    },
+                    {
+                        BudgetAssignmentDbModel {
+                            id: assignment_id2.simple(),
+                            amount: assignment_amount,
+                            budget_id: id.simple(),
+                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                            assignment_type: BudgetAssignmentType::MoveBetweenBudgets.to_string(),
+                            from_budget_id: Some(from_budget_id.simple()),
+                            from_transaction_id: None,
+                            link_id: Some(link_id.simple())
+                        }
+                    },
+                ],
             };
 
             let one_time_target = BudgetDbModel {
@@ -383,11 +539,13 @@ mod tests {
                 name: "hi".into(),
                 target: None,
                 user_id,
-                assignments: vec![BudgetAssignment {
-                    id: assignment_id,
-                    amount: assignment_amount,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-                }],
+                assignments: vec![
+                    default_assignment.clone(),
+                    BudgetAssignment {
+                        source: BudgetAssignmentSource::OtherBudget { from_budget_id, link_id },
+                        ..default_assignment.clone()
+                    },
+                ],
             };
 
             let schedule = Schedule {
@@ -464,7 +622,7 @@ mod tests {
     }
 
     mod db_tests {
-        use std::sync::OnceLock;
+        use std::sync::LazyLock;
 
         use chrono::NaiveDate;
         use rust_decimal::prelude::FromPrimitive;
@@ -472,16 +630,18 @@ mod tests {
 
         use crate::{
             db,
-            extensions::once_lock::OnceLockExt,
-            models::{RepeatingTargetType, SchedulePeriod, User},
+            models::{
+                CreateBankAccountRequest, CreatePayeeRequest, CreateTransactionRequest,
+                RepeatingTargetType, SchedulePeriod, User,
+            },
         };
 
         use super::*;
 
-        static USER_ID: OnceLock<Uuid> = OnceLock::new();
+        static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
         async fn test_init(db_pool: &MySqlPool) {
-            let user_id = *USER_ID.init_uuid();
+            let user_id = *USER_ID;
 
             db::users::create(
                 db_pool,
@@ -495,8 +655,10 @@ mod tests {
         pub async fn create_and_get_budget_test(db_pool: MySqlPool) {
             test_init(&db_pool).await;
 
-            let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let without_assignments_id = Uuid::new_v4();
+            let with_assignments_id = Uuid::new_v4();
+            let from_transaction_id = Uuid::new_v4();
+            let user_id = *USER_ID;
             let schedule_id = Uuid::new_v4();
             let schedule = Schedule {
                 id: schedule_id,
@@ -505,18 +667,78 @@ mod tests {
                 },
             };
 
+            let without_assignments = Budget {
+                id: without_assignments_id,
+                name: "name".into(),
+                target: Some(BudgetTarget::Repeating {
+                    target_amount: Decimal::ZERO,
+                    repeating_type: RepeatingTargetType::RequireRepeating,
+                    schedule: schedule.clone(),
+                }),
+                user_id,
+                assignments: vec![],
+            };
             db::schedule::create(&db_pool, schedule.clone())
                 .await
                 .unwrap();
+            create(&db_pool, without_assignments.clone()).await.unwrap();
 
-            let assignments = vec![BudgetAssignment {
-                id: Uuid::new_v4(),
-                amount: Decimal::ZERO,
-                date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-            }];
+            let bank_account_id = Uuid::new_v4();
+            db::bank_accounts::create(
+                &db_pool,
+                bank_account_id,
+                CreateBankAccountRequest::new("name".into(), Decimal::ZERO, user_id),
+            )
+            .await
+            .unwrap();
 
-            let budget = Budget {
-                id,
+            let payee_id = Uuid::new_v4();
+            db::payees::create(
+                &db_pool,
+                payee_id,
+                CreatePayeeRequest::new("name".into(), user_id),
+            )
+            .await
+            .unwrap();
+
+            db::transactions::create(
+                &db_pool,
+                from_transaction_id,
+                bank_account_id,
+                CreateTransactionRequest::new(
+                    payee_id,
+                    Decimal::ZERO,
+                    NaiveDate::from_ymd_opt(2024, 11, 19).unwrap(),
+                    without_assignments_id,
+                ),
+            )
+            .await
+            .unwrap();
+
+            let link_id = Uuid::new_v4();
+
+            let assignments = vec![
+                BudgetAssignment {
+                    id: Uuid::new_v4(),
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::Transaction {
+                        from_transaction_id,
+                    },
+                },
+                BudgetAssignment {
+                    id: Uuid::new_v4(),
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: without_assignments_id,
+                        link_id: link_id.into()
+                    },
+                },
+            ];
+
+            let with_assignments = Budget {
+                id: with_assignments_id,
                 name: "name".into(),
                 target: Some(BudgetTarget::Repeating {
                     target_amount: Decimal::ZERO,
@@ -527,20 +749,78 @@ mod tests {
                 assignments,
             };
 
-            create(&db_pool, budget.clone()).await.unwrap();
+            create(&db_pool, with_assignments.clone()).await.unwrap();
 
             let fetched = get(&db_pool, user_id).await.unwrap();
-            assert_eq!(fetched, vec![budget.clone()].into_boxed_slice());
+            assert_eq!(
+                fetched,
+                vec![without_assignments.clone(), with_assignments.clone()].into_boxed_slice()
+            );
 
-            let fetched_single = get_single(&db_pool, id).await.unwrap();
-            assert_eq!(fetched_single, budget);
+            let fetched_without_assignments =
+                get_single(&db_pool, without_assignments_id).await.unwrap();
+            let fetched_with_assignments = get_single(&db_pool, with_assignments_id).await.unwrap();
+            assert_eq!(fetched_without_assignments, without_assignments);
+            assert_eq!(fetched_with_assignments, with_assignments);
+        }
+
+        #[sqlx::test]
+        pub async fn get_by_ids_test(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
+            let budget1 = Budget {
+                assignments: vec![],
+                id: Uuid::new_v4(),
+                user_id: *USER_ID,
+                name: "name1".into(),
+                target: None,
+            };
+            let budget2 = Budget {
+                id: Uuid::new_v4(),
+                name: "name2".into(),
+                ..budget1.clone()
+            };
+
+            create(&db_pool, budget1.clone()).await.unwrap();
+            create(&db_pool, budget2.clone()).await.unwrap();
+
+            let mut result = Vec::from(
+                get_by_ids(&db_pool, &[budget1.id, budget2.id])
+                    .await
+                    .unwrap(),
+            );
+
+            result.sort_by(|a, b| a.id.cmp(&b.id));
+
+            let mut expected = vec![budget1, budget2];
+            expected.sort_by(|a, b| a.id.cmp(&b.id));
+
+            assert_eq!(result, expected);
+        }
+
+        #[sqlx::test]
+        pub async fn get_by_ids_when_empty_ids(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
+            let result = get_by_ids(&db_pool, &[]).await.unwrap();
+
+            assert!(result.is_empty());
         }
 
         #[sqlx::test]
         pub async fn get_budgets_without_schedule(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let user_id = *USER_ID;
+            let other_budget_id = Uuid::new_v4();
+
+            create(&db_pool, Budget {
+                id: other_budget_id,
+                user_id,
+                assignments: vec![],
+                name: "name".into(),
+                target: None
+            }).await.unwrap();
 
             let budget = Budget {
                 id,
@@ -549,7 +829,12 @@ mod tests {
                     target_amount: Decimal::from_f32(1.1).unwrap(),
                 }),
                 user_id,
-                assignments: vec![],
+                assignments: vec![BudgetAssignment {
+                    id: Uuid::new_v4(),
+                    amount: Decimal::ZERO,
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget { from_budget_id: other_budget_id, link_id: Uuid::new_v4() }
+                }],
             };
 
             create(&db_pool, budget.clone()).await.unwrap();
@@ -561,20 +846,81 @@ mod tests {
         #[sqlx::test]
         pub async fn update_budget_add_schedule(db_pool: MySqlPool) {
             test_init(&db_pool).await;
-            let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let id1 = Uuid::new_v4();
+            let id2 = Uuid::new_v4();
+            let from_transaction_id = Uuid::new_v4();
+            let user_id = *USER_ID;
             let new_schedule_id = Uuid::new_v4();
 
+            create(
+                &db_pool,
+                Budget {
+                    id: id2,
+                    name: "name2".into(),
+                    target: None,
+                    user_id,
+                    assignments: vec![],
+                },
+            )
+            .await
+            .unwrap();
+
+            let bank_account_id = Uuid::new_v4();
+            db::bank_accounts::create(
+                &db_pool,
+                bank_account_id,
+                CreateBankAccountRequest::new("name".into(), Decimal::ZERO, user_id),
+            )
+            .await
+            .unwrap();
+
+            let payee_id = Uuid::new_v4();
+            db::payees::create(
+                &db_pool,
+                payee_id,
+                CreatePayeeRequest::new("name".into(), user_id),
+            )
+            .await
+            .unwrap();
+
+            db::transactions::create(
+                &db_pool,
+                from_transaction_id,
+                bank_account_id,
+                CreateTransactionRequest::new(
+                    payee_id,
+                    Decimal::ZERO,
+                    NaiveDate::from_ymd_opt(2024, 11, 19).unwrap(),
+                    id2,
+                ),
+            )
+            .await
+            .unwrap();
+
             let budget = Budget {
-                id,
+                id: id1,
                 name: "name".into(),
                 target: None,
                 user_id,
-                assignments: vec![BudgetAssignment {
-                    id: Uuid::new_v4(),
-                    amount: Decimal::ZERO,
-                    date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-                }],
+                assignments: vec![
+                    BudgetAssignment {
+                        id: Uuid::new_v4(),
+                        amount: Decimal::ZERO,
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        source: BudgetAssignmentSource::Transaction {
+                            from_transaction_id,
+                        },
+                    },
+                    BudgetAssignment {
+                        id: Uuid::new_v4(),
+                        amount: Decimal::ZERO,
+                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: id2,
+                            link_id: Uuid::new_v4()
+                        },
+                    },
+                ],
             };
 
             create(&db_pool, budget.clone()).await.unwrap();
@@ -597,24 +943,38 @@ mod tests {
             };
 
             let mut updated = Budget::new(
-                id,
+                id1,
                 "newName".into(),
                 Some(target),
                 user_id,
                 budget
                     .assignments
                     .into_iter()
-                    .chain([BudgetAssignment {
-                        id: Uuid::new_v4(),
-                        amount: dec!(10),
-                        date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
-                    }])
+                    .chain([
+                        BudgetAssignment {
+                            id: Uuid::new_v4(),
+                            amount: Decimal::ZERO,
+                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                            source: BudgetAssignmentSource::Transaction {
+                                from_transaction_id,
+                            },
+                        },
+                        BudgetAssignment {
+                            id: Uuid::new_v4(),
+                            amount: Decimal::ZERO,
+                            date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                            source: BudgetAssignmentSource::OtherBudget {
+                                from_budget_id: id2,
+                                link_id: Uuid::new_v4()
+                            },
+                        },
+                    ])
                     .collect(),
             );
 
             update(&db_pool, updated.clone()).await.unwrap();
 
-            let mut fetched = get_single(&db_pool, id).await.unwrap();
+            let mut fetched = get_single(&db_pool, id1).await.unwrap();
 
             // sort assignments because we don't actually care about the order
             updated.assignments.sort_by(|a, b| a.id.cmp(&b.id));
@@ -627,7 +987,7 @@ mod tests {
         pub async fn update_budget_remove_schedule_onetime_target(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let user_id = *USER_ID;
             let schedule_id = Uuid::new_v4();
 
             let schedule = Schedule {
@@ -672,7 +1032,7 @@ mod tests {
         pub async fn update_budget_remove_schedule_no_target(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let user_id = *USER_ID;
             let schedule_id = Uuid::new_v4();
 
             let schedule = Schedule {
@@ -713,7 +1073,7 @@ mod tests {
         pub async fn update_budget_no_schedule(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let user_id = *USER_ID;
 
             let budget = Budget {
                 id,
@@ -738,7 +1098,7 @@ mod tests {
         pub async fn update_budget_schedule(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let user_id = *USER_ID;
             let schedule_id = Uuid::new_v4();
 
             let schedule = Schedule {
@@ -796,8 +1156,17 @@ mod tests {
         pub async fn delete_budget_test(db_pool: MySqlPool) {
             test_init(&db_pool).await;
             let id = Uuid::new_v4();
-            let user_id = *USER_ID.get().unwrap();
+            let id2 = Uuid::new_v4();
+            let user_id = *USER_ID;
             let schedule_id = Uuid::new_v4();
+            
+            create(&db_pool, Budget {
+                id: id2,
+                user_id,
+                assignments: vec![],
+                name: "name2".into(),
+                target: None
+            }).await.unwrap();
 
             let schedule = Schedule {
                 id: schedule_id,
@@ -814,13 +1183,14 @@ mod tests {
                 target: Some(BudgetTarget::Repeating {
                     target_amount: Decimal::ZERO,
                     repeating_type: RepeatingTargetType::BuildUpTo,
-                    schedule: schedule,
+                    schedule,
                 }),
                 user_id,
                 assignments: vec![BudgetAssignment {
                     id: Uuid::new_v4(),
                     amount: Decimal::ZERO,
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget { from_budget_id: id2, link_id: Uuid::new_v4() }
                 }],
             };
 
