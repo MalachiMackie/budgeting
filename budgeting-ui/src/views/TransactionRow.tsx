@@ -2,7 +2,7 @@ import { Button, Checkbox, NumberInput, Select, Table } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Budget, Payee, Transaction } from "../api/client";
+import { GetBudgetResponse, Payee, Transaction } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 import { formatDate } from "../utils/formatDate";
@@ -14,7 +14,7 @@ export type TransactionRowProps = {
   onEditChange: (editing: boolean) => void;
   isEdit: boolean;
   transaction: Transaction;
-  budgetsMap: Map<string, Budget>;
+  budgetsMap: Map<string, GetBudgetResponse>;
   payeesMap: Map<string, Payee>;
   bankAccountId: string;
 };

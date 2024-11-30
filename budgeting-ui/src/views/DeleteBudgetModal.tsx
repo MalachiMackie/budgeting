@@ -1,11 +1,11 @@
 import { Button, Flex, Modal } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Budget } from "../api/client";
+import { GetBudgetResponse } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
 
 export type DeleteBudgetModalProps = {
-  budget: Budget;
+  budget: GetBudgetResponse;
   onSuccess: () => void;
   onCancel: () => void;
 };

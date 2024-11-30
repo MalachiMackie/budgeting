@@ -257,6 +257,9 @@ VALUE(?, ?, ?, ?, ?, ?, ?)",
 }
 
 pub async fn get_by_ids(db_pool: &MySqlPool, ids: &[Uuid]) -> Result<Box<[Budget]>, Error> {
+    if ids.is_empty() {
+        return Ok(Box::new([]));
+    }
     let mut query_builder = QueryBuilder::new(
         "SELECT id, name, target_type, repeating_target_type, target_amount, target_schedule_id, user_id
         FROM Budgets
@@ -420,12 +423,14 @@ pub async fn update(db_pool: &MySqlPool, budget: Budget) -> Result<(), Error> {
     target_type = ?,
     repeating_target_type = ?,
     target_amount = ?,
-    target_schedule_id = ?",
+    target_schedule_id = ?
+    WHERE id = ?",
         db_model.name,
         db_model.target_type,
         db_model.repeating_target_type,
         db_model.target_amount,
         db_model.target_schedule_id,
+        db_model.id
     )
     .execute(db_pool)
     .await?;
@@ -433,7 +438,7 @@ pub async fn update(db_pool: &MySqlPool, budget: Budget) -> Result<(), Error> {
     if !db_model.assignments.is_empty() {
         let mut query_builder =
             QueryBuilder::new("INSERT IGNORE INTO BudgetAssignments (id, amount, date, budget_id, assignment_type, from_budget_id, from_transaction_id, link_id)");
-        query_builder.push_values(db_model.assignments, |mut b, assignment| {
+            query_builder.push_values(db_model.assignments, |mut b, assignment| {
             b.push_bind(assignment.id)
                 .push_bind(assignment.amount)
                 .push_bind(assignment.date)
@@ -463,6 +468,7 @@ mod tests {
 
         use super::*;
 
+        #[allow(clippy::too_many_lines)]
         #[test]
         pub fn db_model_to_domain_budget() {
             let id = Uuid::new_v4();
@@ -542,6 +548,7 @@ mod tests {
                 assignments: vec![
                     default_assignment.clone(),
                     BudgetAssignment {
+                        id: assignment_id2,
                         source: BudgetAssignmentSource::OtherBudget { from_budget_id, link_id },
                         ..default_assignment.clone()
                     },
@@ -610,18 +617,19 @@ mod tests {
                 ),
             ];
 
-            for ((db_model, maybe_schedule), expected_budget) in pairs {
+            for (i, ((db_model, maybe_schedule), expected_budget)) in pairs.into_iter().enumerate() {
                 let result = db_model.clone().try_into_budget(maybe_schedule).unwrap();
 
-                assert_eq!(result, expected_budget);
+                assert_eq!(result, expected_budget, "case {i}");
 
                 let mapped_db_model: BudgetDbModel = expected_budget.into();
-                assert_eq!(mapped_db_model, db_model);
+                assert_eq!(mapped_db_model, db_model, "case {i}");
             }
         }
     }
 
     mod db_tests {
+        
         use std::sync::LazyLock;
 
         use chrono::NaiveDate;
@@ -667,6 +675,10 @@ mod tests {
                 },
             };
 
+            schedule::create(&db_pool, schedule.clone())
+                .await
+                .unwrap();
+
             let without_assignments = Budget {
                 id: without_assignments_id,
                 name: "name".into(),
@@ -678,9 +690,7 @@ mod tests {
                 user_id,
                 assignments: vec![],
             };
-            db::schedule::create(&db_pool, schedule.clone())
-                .await
-                .unwrap();
+
             create(&db_pool, without_assignments.clone()).await.unwrap();
 
             let bank_account_id = Uuid::new_v4();
@@ -732,34 +742,38 @@ mod tests {
                     date: NaiveDate::from_ymd_opt(2024, 11, 28).unwrap(),
                     source: BudgetAssignmentSource::OtherBudget {
                         from_budget_id: without_assignments_id,
-                        link_id: link_id.into()
+                        link_id
                     },
                 },
             ];
 
-            let with_assignments = Budget {
+            let mut with_assignments = Budget {
                 id: with_assignments_id,
                 name: "name".into(),
-                target: Some(BudgetTarget::Repeating {
-                    target_amount: Decimal::ZERO,
-                    repeating_type: RepeatingTargetType::RequireRepeating,
-                    schedule,
-                }),
+                target: None,
                 user_id,
                 assignments,
             };
 
             create(&db_pool, with_assignments.clone()).await.unwrap();
 
-            let fetched = get(&db_pool, user_id).await.unwrap();
-            assert_eq!(
-                fetched,
-                vec![without_assignments.clone(), with_assignments.clone()].into_boxed_slice()
-            );
+            let mut fetched = Vec::from(get(&db_pool, user_id).await.unwrap());
+            let mut expected = vec![without_assignments.clone(), with_assignments.clone()];
+            fetched.sort_by_key(|x| x.id);
+            expected.sort_by_key(|x| x.id);
+            for budget in &mut fetched {
+                budget.assignments.sort_by_key(|x| x.id);
+            }
+            for budget in &mut expected {
+                budget.assignments.sort_by_key(|x| x.id);
+            }
+            assert_eq!(fetched, expected);
 
             let fetched_without_assignments =
                 get_single(&db_pool, without_assignments_id).await.unwrap();
-            let fetched_with_assignments = get_single(&db_pool, with_assignments_id).await.unwrap();
+            let mut fetched_with_assignments = get_single(&db_pool, with_assignments_id).await.unwrap();
+            fetched_with_assignments.assignments.sort_by_key(|x| x.id);
+            with_assignments.assignments.sort_by_key(|x| x.id);
             assert_eq!(fetched_without_assignments, without_assignments);
             assert_eq!(fetched_with_assignments, with_assignments);
         }
@@ -839,8 +853,8 @@ mod tests {
 
             create(&db_pool, budget.clone()).await.unwrap();
 
-            let fetched = get(&db_pool, user_id).await.unwrap();
-            assert_eq!(fetched, vec![budget].into_boxed_slice());
+            let fetched = get_single(&db_pool, id).await.unwrap();
+            assert_eq!(fetched, budget);
         }
 
         #[sqlx::test]
@@ -1198,9 +1212,8 @@ mod tests {
 
             delete(&db_pool, id).await.unwrap();
 
-            let find_result = get(&db_pool, user_id).await.unwrap();
-
-            assert_eq!(find_result.len(), 0);
+            let result = get_single(&db_pool, id).await;
+            assert!(matches!(result, Err(Error::NotFound)));
 
             let assignments_count = sqlx::query_scalar!("SELECT COUNT(*) FROM BudgetAssignments")
                 .fetch_one(&db_pool)
@@ -1208,6 +1221,38 @@ mod tests {
                 .unwrap();
 
             assert_eq!(assignments_count, 0);
+        }
+
+        #[sqlx::test]
+        pub async fn update_should_update_only_provided_budget(db_pool: MySqlPool) {
+            test_init(&db_pool).await;
+
+            let mut budget1 = Budget {
+                id: Uuid::new_v4(),
+                assignments: vec![],
+                name: "budget 1".into(),
+                user_id: *USER_ID,
+                target: None
+            };
+
+            let budget2 = Budget {
+                id: Uuid::new_v4(),
+                name: "budget 2".into(),
+                ..budget1.clone()
+            };
+
+            create(&db_pool, budget1.clone()).await.unwrap();
+            create(&db_pool, budget2.clone()).await.unwrap();
+
+            budget1.name = "budget 1 - updated".into();
+            update(&db_pool, budget1.clone()).await.unwrap();
+
+            let mut fetched = Vec::from(get_by_ids(&db_pool, &[budget1.id, budget2.id]).await.unwrap());
+            fetched.sort_by_key(|x| x.id);
+            let mut expected = vec![budget1, budget2];
+            expected.sort_by_key(|x| x.id);
+
+            assert_eq!(fetched, expected);
         }
     }
 }

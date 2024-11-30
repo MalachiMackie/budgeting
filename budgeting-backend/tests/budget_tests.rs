@@ -1,5 +1,6 @@
 mod common;
 
+use std::ops::Deref;
 use chrono::NaiveDate;
 use common::*;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
@@ -17,9 +18,19 @@ use budgeting_backend::{
 };
 use sqlx::MySqlPool;
 use uuid::Uuid;
+use budgeting_backend::models::GetBudgetResponse;
 
 static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 static OTHER_BUDGET_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+static OTHER_BUDGET: LazyLock<Budget> = LazyLock::new(|| {
+    Budget {
+        id: *OTHER_BUDGET_ID,
+        assignments: vec![],
+        name: "name".into(),
+        user_id: *USER_ID,
+        target: None
+    }
+});
 
 async fn test_init(db_pool: &MySqlPool) {
     let user_id = *USER_ID;
@@ -31,13 +42,7 @@ async fn test_init(db_pool: &MySqlPool) {
     .await
     .unwrap();
 
-    db::budgets::create(&db_pool, Budget {
-        id: *OTHER_BUDGET_ID,
-        assignments: vec![],
-        name: "name".into(),
-        target: None,
-        user_id
-    }).await.unwrap();
+    db::budgets::create(db_pool, OTHER_BUDGET.deref().clone()).await.unwrap();
 }
 
 #[sqlx::test]
@@ -69,13 +74,11 @@ pub async fn test_create_budget(db_pool: MySqlPool) {
 
     let budget_id: Uuid = response.json();
 
-    let budget = db::budgets::get(&db_pool, user_id).await;
+    let budget = db::budgets::get_single(&db_pool, budget_id).await;
     assert!(budget.is_ok());
-
     let budget = budget.unwrap();
-    assert_eq!(budget.len(), 1);
 
-    let Some(BudgetTarget::Repeating { schedule, .. }) = budget[0].clone().target else {
+    let Some(BudgetTarget::Repeating { schedule, .. }) = budget.clone().target else {
         panic!("expected budget target to be repeating");
     };
 
@@ -91,7 +94,7 @@ pub async fn test_create_budget(db_pool: MySqlPool) {
         assignments: vec![],
     };
 
-    assert_eq!(budget[0], expected_budget);
+    assert_eq!(budget, expected_budget);
 }
 
 #[sqlx::test]
@@ -139,7 +142,28 @@ pub async fn test_get_budgets(db_pool: MySqlPool) {
         .await;
 
     response.assert_ok();
-    response.assert_json(&vec![budget]);
+
+    let mut fetched = response.json::<Vec<GetBudgetResponse>>();
+    let mut expected = vec![GetBudgetResponse {
+        id: budget.id,
+        total_assigned: dec!(10),
+        name: budget.name,
+        user_id: budget.user_id,
+        assignments: budget.assignments,
+        target: budget.target
+    }, GetBudgetResponse {
+        target: None,
+        assignments: vec![],
+        name: OTHER_BUDGET.name.clone(),
+        user_id,
+        id: *OTHER_BUDGET_ID,
+        total_assigned: Decimal::ZERO
+    }];
+
+    fetched.sort_by_key(|x| x.id);
+    expected.sort_by_key(|x| x.id);
+
+    assert_eq!(fetched, expected);
 }
 
 #[sqlx::test]
@@ -225,7 +249,7 @@ pub async fn update_budget(db_pool: MySqlPool) {
 
     response.assert_ok();
 
-    let mut find_response = db::budgets::get(&db_pool, user_id).await.unwrap()[0].clone();
+    let mut find_response = db::budgets::get_single(&db_pool, id).await.unwrap();
 
     if let Some(BudgetTarget::Repeating { schedule, .. }) = &mut find_response.target {
         schedule.id = Uuid::nil();
@@ -266,7 +290,7 @@ pub async fn transfer_between_budgets(db_pool: MySqlPool) {
 
     db::budgets::create(&db_pool, budget.clone()).await.unwrap();
 
-    let response = test_server.put(&format!("api/budgets/{}/transfer-to/{}", budget.id, *OTHER_BUDGET_ID))
+    let response = test_server.put(&format!("/api/budgets/{}/transfer-to/{}", budget.id, *OTHER_BUDGET_ID))
         .json(&TransferBudgetRequest {
             amount: dec!(1),
             date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
@@ -313,7 +337,7 @@ pub async fn transfer_between_budgets(db_pool: MySqlPool) {
         }],
         ..budget.clone()
     });
-    assert_eq!(fetched_1, Budget {
+    assert_eq!(fetched_2, Budget {
         assignments: vec![BudgetAssignment {
             id: Uuid::nil(),
             date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
@@ -323,6 +347,6 @@ pub async fn transfer_between_budgets(db_pool: MySqlPool) {
                 link_id
             }
         }],
-        ..budget.clone()
+        ..OTHER_BUDGET.deref().clone()
     })
 }

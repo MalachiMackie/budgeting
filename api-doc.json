@@ -284,7 +284,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Budget"
+                    "$ref": "#/components/schemas/GetBudgetResponse"
                   }
                 }
               }
@@ -318,6 +318,49 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/budgets/{budgetId}/transfer-to/{otherBudgetId}": {
+      "put": {
+        "tags": [
+          "Budgets"
+        ],
+        "operationId": "transferBetweenBudgets",
+        "parameters": [
+          {
+            "name": "budgetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "otherBudgetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferBudgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
           }
         }
       }
@@ -371,40 +414,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/api/budgets/{budget_id}/assign": {
-      "put": {
-        "tags": [
-          "Budgets"
-        ],
-        "operationId": "assignToBudget",
-        "parameters": [
-          {
-            "name": "budget_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssignToBudgetRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "Success"
@@ -715,23 +724,6 @@
   },
   "components": {
     "schemas": {
-      "AssignToBudgetRequest": {
-        "type": "object",
-        "required": [
-          "date",
-          "amount"
-        ],
-        "properties": {
-          "amount": {
-            "type": "number",
-            "format": "float"
-          },
-          "date": {
-            "type": "string",
-            "format": "date"
-          }
-        }
-      },
       "BankAccount": {
         "type": "object",
         "required": [
@@ -804,7 +796,8 @@
         "required": [
           "id",
           "amount",
-          "date"
+          "date",
+          "source"
         ],
         "properties": {
           "amount": {
@@ -818,7 +811,60 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/BudgetAssignmentSource"
           }
+        }
+      },
+      "BudgetAssignmentSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "from_budget_id",
+              "link_id",
+              "type"
+            ],
+            "properties": {
+              "from_budget_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "link_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "OtherBudget"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "from_transaction_id",
+              "type"
+            ],
+            "properties": {
+              "from_transaction_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Transaction"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "BudgetTarget": {
@@ -1041,6 +1087,46 @@
           }
         }
       },
+      "GetBudgetResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "user_id",
+          "assignments",
+          "total_assigned"
+        ],
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetAssignment"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "target": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetTarget"
+              }
+            ],
+            "nullable": false
+          },
+          "total_assigned": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "Payee": {
         "type": "object",
         "required": [
@@ -1235,6 +1321,23 @@
           "payee_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "TransferBudgetRequest": {
+        "type": "object",
+        "required": [
+          "date",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "float"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
           }
         }
       },

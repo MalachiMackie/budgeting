@@ -16,7 +16,10 @@ async fn main() {
             .await
             .unwrap();
     } else {
-        panic!("Unknown command")
+        // todo: clap
+        panic!("Unknown command
+Available Commands:
+gen-swagger")
     }
 }
 

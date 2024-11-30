@@ -69,7 +69,7 @@ pub fn new_app(db_pool: MySqlPool) -> Router {
         )
         .route(
             "/api/budgets/:budgetId/transfer-to/:otherBudgetId",
-            put(budgets::transfer_between_budgets),
+            put(budgets::transfer_between),
         )
         .with_state(db_pool)
         .layer(

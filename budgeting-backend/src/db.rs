@@ -19,15 +19,15 @@ impl Error {
     pub fn to_app_error(self, error: anyhow::Error) -> AppError {
         match self {
             Self::NotFound => AppError::NotFound(error),
-            Self::Unknown { error } => AppError::InternalServerError(error),
-            Self::MappingError { error } => AppError::InternalServerError(error),
+            Self::Unknown { error }
+            | Self::MappingError { error } => AppError::InternalServerError(error),
         }
     }
     #[cfg(not(debug_assertions))]
     pub fn to_app_error(self, error: anyhow::Error) -> AppError {
         match self {
-            Self::NotFound => AppError::NotFound(error),
-            Self::Unknown { .. } => AppError::InternalServerError(error),
+            Self::NotFound
+            | Self::Unknown { .. } => AppError::NotFound(error),
             Self::MappingError { error } => AppError::InternalServerError(error),
         }
     }

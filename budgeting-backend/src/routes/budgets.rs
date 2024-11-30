@@ -3,12 +3,10 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use chrono::NaiveDate;
 use http::StatusCode;
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::MySqlPool;
-use utoipa::{IntoParams, OpenApi, ToSchema};
+use utoipa::{IntoParams, OpenApi};
 use uuid::Uuid;
 
 use crate::{
@@ -20,11 +18,11 @@ use crate::{
     },
     AppError,
 };
-use crate::models::TransferBudgetRequest;
+use crate::models::{GetBudgetResponse, TransferBudgetRequest};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, create, update, delete, transfer_between_budgets),
+    paths(get, create, update, delete, transfer_between),
     components(schemas(
         Budget,
         CreateBudgetRequest,
@@ -40,7 +38,8 @@ use crate::models::TransferBudgetRequest;
         UpdateScheduleRequest,
         TransferBudgetRequest,
         BudgetAssignment,
-        BudgetAssignmentSource
+        BudgetAssignmentSource,
+        GetBudgetResponse
     ))
 )]
 pub struct Api;
@@ -56,7 +55,7 @@ pub struct GetBudgetsQuery {
     get,
     path = "/api/budgets",
     responses(
-        (status = OK, description = "Success", body = Box<[Budget]>, content_type = "application/json")
+        (status = OK, description = "Success", body = Box<[GetBudgetResponse]>, content_type = "application/json")
     ),
     params(
         GetBudgetsQuery,
@@ -67,15 +66,19 @@ pub struct GetBudgetsQuery {
 pub async fn get(
     State(db_pool): State<MySqlPool>,
     Query(query): Query<GetBudgetsQuery>,
-) -> Result<Json<Box<[Budget]>>, AppError> {
+) -> Result<Json<Box<[GetBudgetResponse]>>, AppError> {
     if query.user_id.is_nil() {
         return Err(AppError::BadRequest(anyhow!("user_id must be set")));
     }
 
-    db::budgets::get(&db_pool, query.user_id)
+    let budgets: Box<[GetBudgetResponse]> = Vec::from(db::budgets::get(&db_pool, query.user_id)
         .await
-        .map(Json)
-        .map_err(|e| e.to_app_error(anyhow!("Failed to get budgets")))
+        .map_err(|e| e.to_app_error(anyhow!("Failed to get budgets")))?)
+        .into_iter()
+        .map(Into::into)
+        .collect();
+
+    Ok(Json(budgets))
 }
 
 #[utoipa::path(
@@ -308,7 +311,7 @@ pub async fn delete(
     tag = API_TAG,
     operation_id = "transferBetweenBudgets"
 )]
-pub async fn transfer_between_budgets(
+pub async fn transfer_between(
     State(db_pool): State<MySqlPool>,
     Path((from_budget_id, to_budget_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<TransferBudgetRequest>,
@@ -715,7 +718,8 @@ mod tests {
 
     mod transfer_between_budget_tests {
         use std::sync::LazyLock;
-
+        use chrono::NaiveDate;
+        use rust_decimal::Decimal;
         use crate::models::{BudgetAssignment, BudgetAssignmentSource, User};
 
         use super::*;
@@ -757,7 +761,7 @@ mod tests {
 
             let link_id = Uuid::new_v4();
             let mut budget1 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
-            let mut budget2 = db::budgets::get_single(&db_pool, *BUDGET1_ID).await.unwrap();
+            let mut budget2 = db::budgets::get_single(&db_pool, *BUDGET2_ID).await.unwrap();
             budget1.assignments.push(BudgetAssignment {
                 id: Uuid::new_v4(),
                 amount: Decimal::ZERO,
@@ -781,7 +785,7 @@ mod tests {
             db::budgets::update(&db_pool, budget1).await.unwrap();
             db::budgets::update(&db_pool, budget2).await.unwrap();
 
-            transfer_between_budgets(
+            transfer_between(
                 State(db_pool.clone()),
                 Path((*BUDGET1_ID, *BUDGET2_ID)),
                 Json(TransferBudgetRequest {
@@ -810,9 +814,9 @@ mod tests {
             assert_eq!(link_id1, link_id2);
             assert_eq!(from_budget_id1, *BUDGET2_ID);
             assert_eq!(from_budget_id2, *BUDGET1_ID);
-            assert_eq!(fetched1.assignments[1].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched1.assignments[1].date, NaiveDate::from_ymd_opt(2024, 11, 30).unwrap());
             assert_eq!(fetched1.assignments[1].amount, Decimal::ZERO);
-            assert_eq!(fetched2.assignments[1].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched2.assignments[1].date, NaiveDate::from_ymd_opt(2024, 11, 30).unwrap());
             assert_eq!(fetched2.assignments[1].amount, Decimal::ZERO);
         }
 
@@ -820,7 +824,7 @@ mod tests {
         pub async fn empty_assignment_test(db_pool: MySqlPool) {
             test_init(&db_pool).await;
 
-            transfer_between_budgets(
+            transfer_between(
                 State(db_pool.clone()),
                 Path((*BUDGET1_ID, *BUDGET2_ID)),
                 Json(TransferBudgetRequest {
@@ -849,9 +853,9 @@ mod tests {
             assert_eq!(link_id1, link_id2);
             assert_eq!(from_budget_id1, *BUDGET2_ID);
             assert_eq!(from_budget_id2, *BUDGET1_ID);
-            assert_eq!(fetched1.assignments[0].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched1.assignments[0].date, NaiveDate::from_ymd_opt(2024, 11, 30).unwrap());
             assert_eq!(fetched1.assignments[0].amount, Decimal::ZERO);
-            assert_eq!(fetched2.assignments[0].date, NaiveDate::from_ymd_opt(2021, 11, 30).unwrap());
+            assert_eq!(fetched2.assignments[0].date, NaiveDate::from_ymd_opt(2024, 11, 30).unwrap());
             assert_eq!(fetched2.assignments[0].amount, Decimal::ZERO);
         }
     }

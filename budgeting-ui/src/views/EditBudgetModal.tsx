@@ -2,7 +2,7 @@ import { Button, Flex, Modal } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  Budget,
+  GetBudgetResponse,
   SchedulePeriod,
   UpdateBudgetRequest,
   UpdateBudgetTargetRequest,
@@ -17,7 +17,7 @@ import {
 } from "./BudgetForm";
 
 export type EditBudgetModalProps = {
-  budget: Budget;
+  budget: GetBudgetResponse;
   onCancel: () => void;
   onSuccess: () => void;
 };
@@ -63,7 +63,7 @@ export function EditBudgetModal({
   );
 }
 
-function createFormValue(budget: Budget): BudgetFormValue {
+function createFormValue(budget: GetBudgetResponse): BudgetFormValue {
   const formValue: BudgetFormValue = {
     ...defaultBudgetFormValue(),
     name: budget.name,

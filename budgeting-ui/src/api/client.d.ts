@@ -8,10 +8,6 @@ import type {
 
 declare namespace Components {
     namespace Schemas {
-        export interface AssignToBudgetRequest {
-            amount: number; // float
-            date: string; // date
-        }
         export interface BankAccount {
             balance: number; // float
             id: string; // uuid
@@ -38,7 +34,16 @@ declare namespace Components {
             amount: number; // float
             date: string; // date
             id: string; // uuid
+            source: BudgetAssignmentSource;
         }
+        export type BudgetAssignmentSource = {
+            from_budget_id: string; // uuid
+            link_id: string; // uuid
+            type: "OtherBudget";
+        } | {
+            from_transaction_id: string; // uuid
+            type: "Transaction";
+        };
         export type BudgetTarget = {
             target_amount: number; // float
             type: "OneTime";
@@ -92,6 +97,22 @@ declare namespace Components {
             email: string;
             name: string;
         }
+        export interface GetBudgetResponse {
+            assignments: BudgetAssignment[];
+            id: string; // uuid
+            name: string;
+            target?: {
+                target_amount: number; // float
+                type: "OneTime";
+            } | {
+                repeating_type: RepeatingTargetType;
+                schedule: Schedule;
+                target_amount: number; // float
+                type: "Repeating";
+            };
+            total_assigned: string;
+            user_id: string; // uuid
+        }
         export interface Payee {
             id: string; // uuid
             name: string;
@@ -127,6 +148,10 @@ declare namespace Components {
             date: string; // date
             id: string; // uuid
             payee_id: string; // uuid
+        }
+        export interface TransferBudgetRequest {
+            amount: number; // float
+            date: string; // date
         }
         export interface UpdateBankAccountRequest {
             name: string;
@@ -182,19 +207,6 @@ declare namespace Components {
     }
 }
 declare namespace Paths {
-    namespace AssignToBudget {
-        namespace Parameters {
-            export type BudgetId = string; // uuid
-        }
-        export interface PathParameters {
-            budget_id: Parameters.BudgetId /* uuid */;
-        }
-        export type RequestBody = Components.Schemas.AssignToBudgetRequest;
-        namespace Responses {
-            export interface $200 {
-            }
-        }
-    }
     namespace CreateBankAccount {
         export type RequestBody = Components.Schemas.CreateBankAccountRequest;
         namespace Responses {
@@ -317,7 +329,7 @@ declare namespace Paths {
             user_id: Parameters.UserId /* uuid */;
         }
         namespace Responses {
-            export type $200 = Components.Schemas.Budget[];
+            export type $200 = Components.Schemas.GetBudgetResponse[];
         }
     }
     namespace GetPayees {
@@ -356,6 +368,21 @@ declare namespace Paths {
     namespace GetUsers {
         namespace Responses {
             export type $200 = Components.Schemas.User[];
+        }
+    }
+    namespace TransferBetweenBudgets {
+        namespace Parameters {
+            export type BudgetId = string; // uuid
+            export type OtherBudgetId = string; // uuid
+        }
+        export interface PathParameters {
+            budgetId: Parameters.BudgetId /* uuid */;
+            otherBudgetId: Parameters.OtherBudgetId /* uuid */;
+        }
+        export type RequestBody = Components.Schemas.TransferBudgetRequest;
+        namespace Responses {
+            export interface $200 {
+            }
         }
     }
     namespace UpdateBankAccount {
@@ -505,6 +532,14 @@ export interface OperationMethods {
     config?: AxiosRequestConfig  
   ): OperationResponse<Paths.CreateBudget.Responses.$201>
   /**
+   * transferBetweenBudgets
+   */
+  'transferBetweenBudgets'(
+    parameters?: Parameters<Paths.TransferBetweenBudgets.PathParameters> | null,
+    data?: Paths.TransferBetweenBudgets.RequestBody,
+    config?: AxiosRequestConfig  
+  ): OperationResponse<Paths.TransferBetweenBudgets.Responses.$200>
+  /**
    * updateBudget
    */
   'updateBudget'(
@@ -520,14 +555,6 @@ export interface OperationMethods {
     data?: any,
     config?: AxiosRequestConfig  
   ): OperationResponse<Paths.DeleteBudget.Responses.$200>
-  /**
-   * assignToBudget
-   */
-  'assignToBudget'(
-    parameters?: Parameters<Paths.AssignToBudget.PathParameters> | null,
-    data?: Paths.AssignToBudget.RequestBody,
-    config?: AxiosRequestConfig  
-  ): OperationResponse<Paths.AssignToBudget.Responses.$200>
   /**
    * getPayees
    */
@@ -691,6 +718,16 @@ export interface PathsDictionary {
       config?: AxiosRequestConfig  
     ): OperationResponse<Paths.CreateBudget.Responses.$201>
   }
+  ['/api/budgets/{budgetId}/transfer-to/{otherBudgetId}']: {
+    /**
+     * transferBetweenBudgets
+     */
+    'put'(
+      parameters?: Parameters<Paths.TransferBetweenBudgets.PathParameters> | null,
+      data?: Paths.TransferBetweenBudgets.RequestBody,
+      config?: AxiosRequestConfig  
+    ): OperationResponse<Paths.TransferBetweenBudgets.Responses.$200>
+  }
   ['/api/budgets/{budget_id}']: {
     /**
      * updateBudget
@@ -708,16 +745,6 @@ export interface PathsDictionary {
       data?: any,
       config?: AxiosRequestConfig  
     ): OperationResponse<Paths.DeleteBudget.Responses.$200>
-  }
-  ['/api/budgets/{budget_id}/assign']: {
-    /**
-     * assignToBudget
-     */
-    'put'(
-      parameters?: Parameters<Paths.AssignToBudget.PathParameters> | null,
-      data?: Paths.AssignToBudget.RequestBody,
-      config?: AxiosRequestConfig  
-    ): OperationResponse<Paths.AssignToBudget.Responses.$200>
   }
   ['/api/payees']: {
     /**
@@ -813,10 +840,10 @@ export interface PathsDictionary {
 
 export type Client = OpenAPIClient<OperationMethods, PathsDictionary>
 
-export type AssignToBudgetRequest = Components.Schemas.AssignToBudgetRequest;
 export type BankAccount = Components.Schemas.BankAccount;
 export type Budget = Components.Schemas.Budget;
 export type BudgetAssignment = Components.Schemas.BudgetAssignment;
+export type BudgetAssignmentSource = Components.Schemas.BudgetAssignmentSource;
 export type BudgetTarget = Components.Schemas.BudgetTarget;
 export type CreateBankAccountRequest = Components.Schemas.CreateBankAccountRequest;
 export type CreateBudgetRequest = Components.Schemas.CreateBudgetRequest;
@@ -825,12 +852,14 @@ export type CreatePayeeRequest = Components.Schemas.CreatePayeeRequest;
 export type CreateScheduleRequest = Components.Schemas.CreateScheduleRequest;
 export type CreateTransactionRequest = Components.Schemas.CreateTransactionRequest;
 export type CreateUserRequest = Components.Schemas.CreateUserRequest;
+export type GetBudgetResponse = Components.Schemas.GetBudgetResponse;
 export type Payee = Components.Schemas.Payee;
 export type RepeatingTargetType = Components.Schemas.RepeatingTargetType;
 export type Schedule = Components.Schemas.Schedule;
 export type SchedulePeriod = Components.Schemas.SchedulePeriod;
 export type SchedulePeriodType = Components.Schemas.SchedulePeriodType;
 export type Transaction = Components.Schemas.Transaction;
+export type TransferBudgetRequest = Components.Schemas.TransferBudgetRequest;
 export type UpdateBankAccountRequest = Components.Schemas.UpdateBankAccountRequest;
 export type UpdateBudgetRequest = Components.Schemas.UpdateBudgetRequest;
 export type UpdateBudgetTargetRequest = Components.Schemas.UpdateBudgetTargetRequest;

@@ -1,8 +1,8 @@
 import { Checkbox, Table } from "@mantine/core";
-import { Budget } from "../api/client";
+import { GetBudgetResponse } from "../api/client";
 
 export type BudgetListProps = {
-  budgets: Budget[];
+  budgets: GetBudgetResponse[];
   selectedId: string | null;
   onSelectedChange: (selectedId: string | null) => void;
 };
@@ -44,7 +44,7 @@ function BudgetRow({
   selected,
   onSelectedChange,
 }: {
-  budget: Budget;
+  budget: GetBudgetResponse;
   selected: boolean;
   onSelectedChange: (selected: boolean) => void;
 }): JSX.Element {

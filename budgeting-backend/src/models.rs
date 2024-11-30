@@ -140,6 +140,34 @@ pub struct Budget {
     pub user_id: Uuid,
     pub assignments: Vec<BudgetAssignment>,
 }
+impl Budget {
+    pub fn total_assigned(&self) -> Decimal {
+        self.assignments.iter().map(|x| x.amount).sum()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize, Constructor)]
+pub struct GetBudgetResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub target: Option<BudgetTarget>,
+    pub user_id: Uuid,
+    pub assignments: Vec<BudgetAssignment>,
+    pub total_assigned: Decimal
+}
+
+impl From<Budget> for GetBudgetResponse {
+    fn from(value: Budget) -> Self {
+        GetBudgetResponse {
+            total_assigned: value.total_assigned(),
+            id: value.id,
+            target: value.target,
+            user_id: value.user_id,
+            assignments: value.assignments,
+            name: value.name,
+        }
+    }
+}
 
 impl Budget {
     pub fn assign_from_transaction(&mut self, transaction: &Transaction) {
@@ -358,4 +386,151 @@ pub struct TransferBudgetRequest {
     #[schema(value_type = f32)]
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod budget_into_get_budget_response {
+        use std::sync::LazyLock;
+        use rust_decimal_macros::dec;
+        use super::*;
+
+        static BUDGET_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+        static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+
+        #[test]
+        #[allow(non_snake_case)]
+        pub fn budget_into_get_budget_response__no_assignments() {
+            let budget = Budget {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![]
+            };
+
+            let expected = GetBudgetResponse {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![],
+                total_assigned: Decimal::ZERO
+            };
+
+            let mapped: GetBudgetResponse = budget.into();
+
+            assert_eq!(mapped, expected);
+        }
+
+        #[test]
+        #[allow(non_snake_case)]
+        pub fn budget_into_get_budget_response__one_assignment() {
+            let assignment_id = Uuid::new_v4();
+            let link_id = Uuid::new_v4();
+            let budget = Budget {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![
+                    BudgetAssignment {
+                        id: assignment_id,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: *BUDGET_ID,
+                            link_id
+                        }
+                    }
+                ]
+            };
+
+            let expected = GetBudgetResponse {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![BudgetAssignment {
+                    id: assignment_id,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *BUDGET_ID,
+                        link_id
+                    }
+                }],
+                total_assigned: dec!(10)
+            };
+
+            let mapped: GetBudgetResponse = budget.into();
+
+            assert_eq!(mapped, expected);
+        }
+
+        #[test]
+        #[allow(non_snake_case)]
+        pub fn budget_into_get_budget_response__multiple_assignments() {
+            let assignment_id1 = Uuid::new_v4();
+            let assignment_id2 = Uuid::new_v4();
+            let link_id = Uuid::new_v4();
+            let budget = Budget {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![
+                    BudgetAssignment {
+                        id: assignment_id1,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: *BUDGET_ID,
+                            link_id
+                        }
+                    },
+                    BudgetAssignment {
+                        id: assignment_id2,
+                        amount: dec!(-50),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: *BUDGET_ID,
+                            link_id
+                        }
+                    },
+                ]
+            };
+
+            let expected = GetBudgetResponse {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                assignments: vec![BudgetAssignment {
+                    id: assignment_id1,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *BUDGET_ID,
+                        link_id
+                    }
+                }, BudgetAssignment {
+                    id: assignment_id2,
+                    amount: dec!(-50),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *BUDGET_ID,
+                        link_id
+                    }
+                }],
+                total_assigned: dec!(-40)
+            };
+
+            let mapped: GetBudgetResponse = budget.into();
+
+            assert_eq!(mapped, expected);
+        }
+    }
 }
