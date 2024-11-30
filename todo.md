@@ -1,4 +1,6 @@
 - Budget assignment
+    - transfer between budgets - BE done
+    - assign for transaction
 - suggested budget assignment
 - Budget groups? ability to switch budgets like ynab
 - fix nav scrolling
