@@ -148,7 +148,9 @@ pub struct GetBudgetResponse {
     pub target: Option<BudgetTarget>,
     pub user_id: Uuid,
     pub assignments: Vec<BudgetAssignment>,
-    pub total_assigned: Decimal
+    #[schema(value_type = f32)]
+    #[serde(with = "rust_decimal::serde::float")]
+    pub total_assigned: Decimal,
 }
 
 impl From<Budget> for GetBudgetResponse {
@@ -174,7 +176,9 @@ impl Budget {
             id: Uuid::new_v4(),
             amount: transaction.amount,
             date: transaction.date,
-            source: BudgetAssignmentSource::Transaction { from_transaction_id: transaction.id }
+            source: BudgetAssignmentSource::Transaction {
+                from_transaction_id: transaction.id,
+            },
         });
     }
 
@@ -392,9 +396,9 @@ mod tests {
     use super::*;
 
     mod budget_into_get_budget_response {
-        use std::sync::LazyLock;
-        use rust_decimal_macros::dec;
         use super::*;
+        use rust_decimal_macros::dec;
+        use std::sync::LazyLock;
 
         static BUDGET_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
         static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
@@ -406,17 +410,21 @@ mod tests {
                 id: *BUDGET_ID,
                 name: "name".into(),
                 user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
-                assignments: vec![]
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
+                assignments: vec![],
             };
 
             let expected = GetBudgetResponse {
                 id: *BUDGET_ID,
                 name: "name".into(),
                 user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
                 assignments: vec![],
-                total_assigned: Decimal::ZERO
+                total_assigned: Decimal::ZERO,
             };
 
             let mapped: GetBudgetResponse = budget.into();
@@ -433,35 +441,37 @@ mod tests {
                 id: *BUDGET_ID,
                 name: "name".into(),
                 user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
-                assignments: vec![
-                    BudgetAssignment {
-                        id: assignment_id,
-                        amount: dec!(10),
-                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
-                        source: BudgetAssignmentSource::OtherBudget {
-                            from_budget_id: *BUDGET_ID,
-                            link_id
-                        }
-                    }
-                ]
-            };
-
-            let expected = GetBudgetResponse {
-                id: *BUDGET_ID,
-                name: "name".into(),
-                user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
                 assignments: vec![BudgetAssignment {
                     id: assignment_id,
                     amount: dec!(10),
                     date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
                     source: BudgetAssignmentSource::OtherBudget {
                         from_budget_id: *BUDGET_ID,
-                        link_id
-                    }
+                        link_id,
+                    },
                 }],
-                total_assigned: dec!(10)
+            };
+
+            let expected = GetBudgetResponse {
+                id: *BUDGET_ID,
+                name: "name".into(),
+                user_id: *USER_ID,
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
+                assignments: vec![BudgetAssignment {
+                    id: assignment_id,
+                    amount: dec!(10),
+                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                    source: BudgetAssignmentSource::OtherBudget {
+                        from_budget_id: *BUDGET_ID,
+                        link_id,
+                    },
+                }],
+                total_assigned: dec!(10),
             };
 
             let mapped: GetBudgetResponse = budget.into();
@@ -479,7 +489,9 @@ mod tests {
                 id: *BUDGET_ID,
                 name: "name".into(),
                 user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
                 assignments: vec![
                     BudgetAssignment {
                         id: assignment_id1,
@@ -487,8 +499,8 @@ mod tests {
                         date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
                         source: BudgetAssignmentSource::OtherBudget {
                             from_budget_id: *BUDGET_ID,
-                            link_id
-                        }
+                            link_id,
+                        },
                     },
                     BudgetAssignment {
                         id: assignment_id2,
@@ -496,35 +508,40 @@ mod tests {
                         date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
                         source: BudgetAssignmentSource::OtherBudget {
                             from_budget_id: *BUDGET_ID,
-                            link_id
-                        }
+                            link_id,
+                        },
                     },
-                ]
+                ],
             };
 
             let expected = GetBudgetResponse {
                 id: *BUDGET_ID,
                 name: "name".into(),
                 user_id: *USER_ID,
-                target: Some(BudgetTarget::OneTime {target_amount: Decimal::ZERO}),
-                assignments: vec![BudgetAssignment {
-                    id: assignment_id1,
-                    amount: dec!(10),
-                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
-                    source: BudgetAssignmentSource::OtherBudget {
-                        from_budget_id: *BUDGET_ID,
-                        link_id
-                    }
-                }, BudgetAssignment {
-                    id: assignment_id2,
-                    amount: dec!(-50),
-                    date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
-                    source: BudgetAssignmentSource::OtherBudget {
-                        from_budget_id: *BUDGET_ID,
-                        link_id
-                    }
-                }],
-                total_assigned: dec!(-40)
+                target: Some(BudgetTarget::OneTime {
+                    target_amount: Decimal::ZERO,
+                }),
+                assignments: vec![
+                    BudgetAssignment {
+                        id: assignment_id1,
+                        amount: dec!(10),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: *BUDGET_ID,
+                            link_id,
+                        },
+                    },
+                    BudgetAssignment {
+                        id: assignment_id2,
+                        amount: dec!(-50),
+                        date: NaiveDate::from_ymd_opt(2024, 11, 30).unwrap(),
+                        source: BudgetAssignmentSource::OtherBudget {
+                            from_budget_id: *BUDGET_ID,
+                            link_id,
+                        },
+                    },
+                ],
+                total_assigned: dec!(-40),
             };
 
             let mapped: GetBudgetResponse = budget.into();

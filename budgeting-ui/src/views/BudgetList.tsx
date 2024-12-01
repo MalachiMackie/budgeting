@@ -57,8 +57,14 @@ function BudgetRow({
         />
       </Table.Td>
       <Table.Td>{budget.name}</Table.Td>
-      <Table.Td></Table.Td>
-      <Table.Td></Table.Td>
+      <Table.Td>{budget.total_assigned.toFixed(2)}</Table.Td>
+      <Table.Td>
+        {budget.assignments
+          .filter((x) => x.source.type === "Transaction")
+          .map((x) => x.amount)
+          .reduce((prev, current) => prev + current, 0)
+          .toFixed(0)}
+      </Table.Td>
       <Table.Td></Table.Td>
     </Table.Tr>
   );

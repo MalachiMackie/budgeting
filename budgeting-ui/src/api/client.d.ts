@@ -110,7 +110,7 @@ declare namespace Components {
                 target_amount: number; // float
                 type: "Repeating";
             };
-            total_assigned: string;
+            total_assigned: number; // float
             user_id: string; // uuid
         }
         export interface Payee {

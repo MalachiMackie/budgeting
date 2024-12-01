@@ -1119,7 +1119,8 @@
             "nullable": false
           },
           "total_assigned": {
-            "type": "string"
+            "type": "number",
+            "format": "float"
           },
           "user_id": {
             "type": "string",
