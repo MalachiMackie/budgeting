@@ -401,7 +401,7 @@ mod tests {
 
         #[test]
         #[allow(non_snake_case)]
-        pub fn budget_into_get_budget_response__no_assignments() {
+        pub fn into_get_budget_response__no_assignments() {
             let budget = Budget {
                 id: *BUDGET_ID,
                 name: "name".into(),
@@ -426,7 +426,7 @@ mod tests {
 
         #[test]
         #[allow(non_snake_case)]
-        pub fn budget_into_get_budget_response__one_assignment() {
+        pub fn into_get_budget_response__one_assignment() {
             let assignment_id = Uuid::new_v4();
             let link_id = Uuid::new_v4();
             let budget = Budget {
@@ -471,7 +471,7 @@ mod tests {
 
         #[test]
         #[allow(non_snake_case)]
-        pub fn budget_into_get_budget_response__multiple_assignments() {
+        pub fn into_get_budget_response__multiple_assignments() {
             let assignment_id1 = Uuid::new_v4();
             let assignment_id2 = Uuid::new_v4();
             let link_id = Uuid::new_v4();
