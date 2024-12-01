@@ -2,6 +2,7 @@ mod common;
 
 use std::sync::OnceLock;
 
+use budgeting_backend::models::{BudgetAssignment, BudgetAssignmentSource};
 use budgeting_backend::{
     db::{self, Error},
     models::{
@@ -87,6 +88,25 @@ pub async fn create_transaction(db_pool: MySqlPool) {
         .await
         .unwrap();
 
+    let mut budgets = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+
+    assert_eq!(budgets.assignments.len(), 1);
+
+    let mut assignment = budgets.assignments.remove(0);
+    assignment.id = Uuid::nil();
+
+    assert_eq!(
+        assignment,
+        BudgetAssignment {
+            id: Uuid::nil(),
+            amount: dec!(10.15),
+            date: NaiveDate::from_ymd_opt(2024, 9, 25).unwrap(),
+            source: BudgetAssignmentSource::Transaction {
+                from_transaction_id: transaction_id
+            }
+        }
+    );
+
     let expected = vec![Transaction::new(
         transaction_id,
         payee_id,
@@ -117,19 +137,9 @@ pub async fn get_transactions(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create(
-        &db_pool,
-        transaction.id,
-        bank_account_id,
-        CreateTransactionRequest::new(
-            transaction.payee_id,
-            transaction.amount,
-            transaction.date,
-            budget_id,
-        ),
-    )
-    .await
-    .unwrap();
+    db::transactions::create(&db_pool, transaction.clone())
+        .await
+        .unwrap();
 
     let response = test_server
         .get(&format!(
@@ -161,14 +171,15 @@ pub async fn update_transaction(db_pool: MySqlPool) {
     )
     .await
     .unwrap();
-    db::budgets::create(
-        &db_pool,
-        Budget::new(budget_id_2, "name".into(), None, user_id, vec![]),
-    )
-    .await
-    .unwrap();
 
-    let transaction = Transaction::new(
+    let mut budget1 = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+    let budget2 = Budget::new(budget_id_2, "name".into(), None, user_id, vec![]);
+
+    db::budgets::create(&db_pool, budget2.clone())
+        .await
+        .unwrap();
+
+    let mut transaction = Transaction::new(
         transaction_id,
         payee_id,
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
@@ -176,19 +187,22 @@ pub async fn update_transaction(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create(
-        &db_pool,
-        transaction.id,
-        bank_account_id,
-        CreateTransactionRequest::new(
-            transaction.payee_id,
-            transaction.amount,
-            transaction.date,
-            budget_id,
-        ),
-    )
-    .await
-    .unwrap();
+    db::transactions::create(&db_pool, transaction.clone())
+        .await
+        .unwrap();
+
+    let assignment = BudgetAssignment {
+        id: Uuid::new_v4(),
+        amount: transaction.amount,
+        date: transaction.date,
+        source: BudgetAssignmentSource::Transaction {
+            from_transaction_id: transaction_id,
+        },
+    };
+
+    budget1.assignments.push(assignment.clone());
+
+    db::budgets::update(&db_pool, budget1).await.unwrap();
 
     let response = test_server
         .put(&format!("/api/transactions/{transaction_id}"))
@@ -200,7 +214,37 @@ pub async fn update_transaction(db_pool: MySqlPool) {
         ))
         .await;
 
+    transaction.amount = dec!(-1.2);
+    transaction.payee_id = payee_id_2;
+    transaction.date = NaiveDate::from_ymd_opt(2024, 10, 5).unwrap();
+    transaction.budget_id = budget_id_2;
+
     response.assert_ok();
+
+    let fetched_transaction = db::transactions::get_single(&db_pool, transaction_id)
+        .await
+        .unwrap();
+    let fetched_budget_1 = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+    let mut fetched_budget_2 = db::budgets::get_single(&db_pool, budget_id_2)
+        .await
+        .unwrap();
+
+    assert_eq!(fetched_transaction, transaction);
+
+    assert_eq!(fetched_budget_1.assignments.len(), 0);
+    assert_eq!(fetched_budget_2.assignments.len(), 1);
+    let mut fetched_assignment = fetched_budget_2.assignments.remove(0);
+    fetched_assignment.id = Uuid::nil();
+
+    assert_eq!(
+        fetched_assignment,
+        BudgetAssignment {
+            id: Uuid::nil(),
+            amount: dec!(-1.2),
+            date: NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+            ..assignment
+        }
+    )
 }
 
 #[sqlx::test]
@@ -221,19 +265,13 @@ pub async fn delete_transaction(db_pool: MySqlPool) {
         bank_account_id,
         budget_id,
     );
-    db::transactions::create(
-        &db_pool,
-        transaction.id,
-        bank_account_id,
-        CreateTransactionRequest::new(
-            transaction.payee_id,
-            transaction.amount,
-            transaction.date,
-            budget_id,
-        ),
-    )
-    .await
-    .unwrap();
+    db::transactions::create(&db_pool, transaction.clone())
+        .await
+        .unwrap();
+
+    let mut budget = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+    budget.assign_from_transaction(&transaction);
+    db::budgets::update(&db_pool, budget).await.unwrap();
 
     let response = test_server
         .delete(&format!(
@@ -247,4 +285,7 @@ pub async fn delete_transaction(db_pool: MySqlPool) {
     let find_response = db::transactions::get_single(&db_pool, transaction.id).await;
 
     assert!(matches!(find_response, Err(Error::NotFound)));
+
+    let fetched_budget = db::budgets::get_single(&db_pool, budget_id).await.unwrap();
+    assert!(fetched_budget.assignments.is_empty());
 }

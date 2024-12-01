@@ -126,9 +126,9 @@ mod tests {
     use crate::{
         db,
         extensions::decimal::DecimalExt,
-        models::{Budget, CreatePayeeRequest, CreateTransactionRequest, User},
+        models::{Budget, CreatePayeeRequest, User},
     };
-
+    use crate::models::Transaction;
     use super::*;
 
     static USER_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
@@ -232,14 +232,14 @@ mod tests {
 
         db::transactions::create(
             &db_pool,
-            Uuid::new_v4(),
-            bank_account_id,
-            CreateTransactionRequest::new(
+            Transaction {
+                id: Uuid::new_v4(),
+                bank_account_id,
                 payee_id,
-                dec!(3.13),
-                NaiveDate::from_ymd_opt(2024, 10, 6).unwrap(),
                 budget_id,
-            ),
+                amount: dec!(3.13),
+                date: NaiveDate::from_ymd_opt(2024, 10, 6).unwrap()
+            }
         )
         .await
         .unwrap();

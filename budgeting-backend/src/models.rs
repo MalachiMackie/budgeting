@@ -140,11 +140,6 @@ pub struct Budget {
     pub user_id: Uuid,
     pub assignments: Vec<BudgetAssignment>,
 }
-impl Budget {
-    pub fn total_assigned(&self) -> Decimal {
-        self.assignments.iter().map(|x| x.amount).sum()
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, ToSchema, Serialize, Deserialize, Constructor)]
 pub struct GetBudgetResponse {
@@ -170,6 +165,10 @@ impl From<Budget> for GetBudgetResponse {
 }
 
 impl Budget {
+    pub fn total_assigned(&self) -> Decimal {
+        self.assignments.iter().map(|x| x.amount).sum()
+    }
+
     pub fn assign_from_transaction(&mut self, transaction: &Transaction) {
         self.assignments.push(BudgetAssignment {
             id: Uuid::new_v4(),

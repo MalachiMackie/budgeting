@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use sqlx::{prelude::FromRow, MySql, MySqlPool};
 use uuid::Uuid;
 
-use crate::models::{CreateTransactionRequest, Transaction};
+use crate::models::Transaction;
 
 use super::Error;
 
@@ -32,20 +32,18 @@ impl From<TransactionModel> for Transaction {
 
 pub async fn create(
     db_pool: &MySqlPool,
-    id: Uuid,
-    bank_account_id: Uuid,
-    request: CreateTransactionRequest,
+    transaction: Transaction,
 ) -> Result<(), Error> {
     sqlx::query!(
         r"
             INSERT INTO Transactions (id, payee_id, date, amount, bank_account_id, budget_id)
             VALUE (?, ?, ?, ?, ?, ?)",
-        id.as_simple(),
-        request.payee_id.as_simple(),
-        request.date,
-        request.amount,
-        bank_account_id.as_simple(),
-        request.budget_id.as_simple()
+        transaction.id.as_simple(),
+        transaction.payee_id.as_simple(),
+        transaction.date,
+        transaction.amount,
+        transaction.bank_account_id.as_simple(),
+        transaction.budget_id.as_simple()
     )
     .execute(db_pool)
     .await?;
@@ -173,14 +171,14 @@ mod tests {
 
         let result = create(
             &db_pool,
-            transaction_id,
-            bank_account_id,
-            CreateTransactionRequest::new(
-                payee_id,
-                Decimal::from_f32(1.2).unwrap(),
-                NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+            Transaction {
+                id: transaction_id,
                 budget_id,
-            ),
+                payee_id,
+                bank_account_id,
+                date: NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+                amount: dec!(1.2)
+            }
         )
         .await;
 
@@ -240,14 +238,14 @@ mod tests {
 
         create(
             &db_pool,
-            transaction_id,
-            bank_account_id,
-            CreateTransactionRequest::new(
-                payee_id_1,
-                Decimal::from_f32(1.2).unwrap(),
-                NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
-                budget_id_1,
-            ),
+            Transaction {
+                id: transaction_id,
+                bank_account_id,
+                budget_id: budget_id_1,
+                payee_id: payee_id_1,
+                date: NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+                amount: dec!(1.2)
+            }
         )
         .await
         .unwrap();
@@ -267,7 +265,7 @@ mod tests {
 
         let found_transactions = get(&db_pool, bank_account_id).await.unwrap();
 
-        assert!(found_transactions.len() == 1);
+        assert_eq!(found_transactions.len(), 1);
         let mut found_transaction = found_transactions[0].clone();
 
         let found_amount = found_transaction.amount;
@@ -291,14 +289,14 @@ mod tests {
 
         create(
             &db_pool,
-            transaction_id,
-            bank_account_id,
-            CreateTransactionRequest::new(
+            Transaction {
+                id: transaction_id,
                 payee_id,
-                Decimal::from_f32(1.2).unwrap(),
-                NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+                bank_account_id,
                 budget_id,
-            ),
+                date: NaiveDate::from_ymd_opt(2024, 10, 5).unwrap(),
+                amount: dec!(1.2)
+            }
         )
         .await
         .unwrap();
