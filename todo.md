@@ -1,4 +1,6 @@
 - suggested budget assignment
+- scheduled transactions
+- create budget target from scheduled transactions
 - Budget groups? ability to switch budgets like ynab
 - fix nav scrolling
 - Better transaction flow
@@ -7,3 +9,4 @@
     - clearer amount outflow/inflow
 - user signin
 - Archive budget
+- Timeline view - like pocketsmith
