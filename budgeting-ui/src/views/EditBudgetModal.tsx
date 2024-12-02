@@ -9,7 +9,7 @@ import {
 } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
-import { formatDate } from "../utils/formatDate";
+import { formatDateForApi } from "../utils/formatDate";
 import {
   BudgetForm,
   BudgetFormValue,
@@ -127,7 +127,7 @@ function buildUpdateTargetRequest({
     };
   }
 
-  const startingOnStr = formatDate(scheduleStartingOn);
+  const startingOnStr = formatDateForApi(scheduleStartingOn);
 
   let schedulePeriod: SchedulePeriod;
 

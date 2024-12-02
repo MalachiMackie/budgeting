@@ -10,6 +10,11 @@ export const queryKeys = {
     create: ["create-budget"],
     delete: ["delete-budget"],
     edit: (budgetId: string) => ["edit-budget", budgetId],
+    moveBetween: (fromBudgetId: string, toBudgetId: string) => [
+      "move-between-budgets",
+      fromBudgetId,
+      toBudgetId,
+    ],
   },
   bankAccounts: {
     fetch: ["bank-accounts"],

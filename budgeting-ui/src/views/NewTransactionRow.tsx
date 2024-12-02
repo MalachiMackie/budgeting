@@ -12,7 +12,7 @@ import {
   GetBudgetResponse,
   Payee,
 } from "../api/client";
-import { formatDate } from "../utils/formatDate";
+import { formatDateForApi } from "../utils/formatDate";
 import { CreateBudgetModal } from "./CreateBudgetModal";
 import { CreatePayeeModal } from "./CreatePayeeModal";
 import "./NewTransactionRow.css";
@@ -51,7 +51,7 @@ export function NewTransactionRow({
     try {
       setSaving(true);
       await save({
-        date: formatDate(date),
+        date: formatDateForApi(date),
         payee_id: payeeId,
         amount: amount,
         budget_id: budgetId,

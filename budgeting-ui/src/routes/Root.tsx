@@ -17,6 +17,7 @@ import { useBudgetingApi } from "../App";
 import { SideNav, SideNavProps } from "../components/SideNav/SideNav";
 import { useUserId } from "../hooks/useUserId";
 import { queryKeys } from "../queryKeys";
+import { formatCurrency } from "../utils/formatCurrency";
 import { CreateBankAccountModal } from "../views/CreateBankAccountModal";
 
 export function Root(): JSX.Element {
@@ -65,7 +66,7 @@ export function Root(): JSX.Element {
                     type: "link",
                     id: x.id,
                     label: `${x.name}`,
-                    subLabel: `$${x.balance.toFixed(2)}`,
+                    subLabel: formatCurrency(x.balance),
                     link: `/accounts/${x.id}`,
                   }) satisfies Extract<
                     SideNavProps["items"][number],

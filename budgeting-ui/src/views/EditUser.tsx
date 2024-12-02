@@ -19,7 +19,7 @@ import {
 } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
-import { formatDate } from "../utils/formatDate";
+import { formatDateForApi } from "../utils/formatDate";
 
 export type EditUserProps = {
   user: User;
@@ -56,7 +56,7 @@ export function EditUser({
   });
 
   return (
-    <Modal opened onClose={onCancel} title="Edit Payee">
+    <Modal opened onClose={onCancel} title="Edit User">
       <Flex gap="0.5rem" direction={"column"}>
         <TextInput
           label="Name"
@@ -70,62 +70,66 @@ export function EditUser({
             setValue({ ...value, hasPayFrequency: e.currentTarget.checked })
           }
         />
-        <SegmentedControl
-          data={["Weekly", "Fortnightly", "Monthly", "Yearly", "Custom"]}
-          value={value.schedulePeriodType}
-          onChange={(x) =>
-            setValue({
-              ...value,
-              schedulePeriodType: x as typeof value.schedulePeriodType,
-            })
-          }
-        />
-        {value.schedulePeriodType !== "Custom" && (
+        {value.hasPayFrequency && (
           <>
-            <DatePickerInput
-              value={value.scheduleStartingOn}
-              label="Starting on"
-              onChange={(x) =>
-                x && setValue({ ...value, scheduleStartingOn: x })
-              }
-            />
-          </>
-        )}
-        {value.schedulePeriodType === "Custom" && (
-          <>
-            <Flex gap="0.5rem">
-              <span style={{ verticalAlign: "middle" }}>Every</span>
-              <NumberInput
-                value={value.customSchedulePeriodTimes}
-                onChange={(x) =>
-                  typeof x === "number" &&
-                  setValue({ ...value, customSchedulePeriodTimes: x })
-                }
-              />
-            </Flex>
-
             <SegmentedControl
-              data={(
-                ["Weekly", "Fortnightly", "Monthly", "Yearly"] as const
-              ).map(
-                (newValue) =>
-                  ({
-                    value: newValue,
-                    label: formatPeriod(
-                      value.customSchedulePeriodTimes > 1,
-                      newValue
-                    ),
-                  }) satisfies SegmentedControlItem
-              )}
-              value={value.customSchedulePeriodType}
+              data={["Weekly", "Fortnightly", "Monthly", "Yearly", "Custom"]}
+              value={value.schedulePeriodType}
               onChange={(x) =>
                 setValue({
                   ...value,
-                  customSchedulePeriodType:
-                    x as typeof value.customSchedulePeriodType,
+                  schedulePeriodType: x as typeof value.schedulePeriodType,
                 })
               }
             />
+            {value.schedulePeriodType !== "Custom" && (
+              <>
+                <DatePickerInput
+                  value={value.scheduleStartingOn}
+                  label="Starting on"
+                  onChange={(x) =>
+                    x && setValue({ ...value, scheduleStartingOn: x })
+                  }
+                />
+              </>
+            )}
+            {value.schedulePeriodType === "Custom" && (
+              <>
+                <Flex gap="0.5rem">
+                  <span style={{ verticalAlign: "middle" }}>Every</span>
+                  <NumberInput
+                    value={value.customSchedulePeriodTimes}
+                    onChange={(x) =>
+                      typeof x === "number" &&
+                      setValue({ ...value, customSchedulePeriodTimes: x })
+                    }
+                  />
+                </Flex>
+
+                <SegmentedControl
+                  data={(
+                    ["Weekly", "Fortnightly", "Monthly", "Yearly"] as const
+                  ).map(
+                    (newValue) =>
+                      ({
+                        value: newValue,
+                        label: formatPeriod(
+                          value.customSchedulePeriodTimes > 1,
+                          newValue
+                        ),
+                      }) satisfies SegmentedControlItem
+                  )}
+                  value={value.customSchedulePeriodType}
+                  onChange={(x) =>
+                    setValue({
+                      ...value,
+                      customSchedulePeriodType:
+                        x as typeof value.customSchedulePeriodType,
+                    })
+                  }
+                />
+              </>
+            )}
           </>
         )}
         <Button onClick={() => saveUser.mutate()}>Save</Button>
@@ -145,7 +149,7 @@ function buildUpdateScheduleRequest({
     return undefined;
   }
 
-  const startingOnStr = formatDate(scheduleStartingOn);
+  const startingOnStr = formatDateForApi(scheduleStartingOn);
 
   let schedulePeriod: SchedulePeriod;
 

@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { GetBudgetResponse, Payee, Transaction } from "../api/client";
 import { useBudgetingApi } from "../App";
 import { queryKeys } from "../queryKeys";
-import { formatDate } from "../utils/formatDate";
+import { formatCurrency } from "../utils/formatCurrency";
+import { formatDateForApi } from "../utils/formatDate";
 
 export type TransactionRowProps = {
   selected: boolean;
@@ -50,7 +51,7 @@ export function TransactionRow({
           amount: amountEdit,
           budget_id: budgetIdEdit,
           payee_id: payeeIdEdit,
-          date: formatDate(dateEdit),
+          date: formatDateForApi(dateEdit),
         }
       );
     },
@@ -130,8 +131,7 @@ export function TransactionRow({
         {!isEdit && (
           <Table.Td onClick={() => !selected && onRowSelected()}>
             <span onClick={() => onEditChange(true)}>
-              {Math.sign(transaction.amount) === -1 && "-"}$
-              {Math.abs(transaction.amount).toFixed(2)}
+              {formatCurrency(transaction.amount)}
             </span>
           </Table.Td>
         )}

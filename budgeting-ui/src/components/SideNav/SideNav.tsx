@@ -37,8 +37,6 @@ export function SideNav({ items: groups }: SideNavProps): JSX.Element {
       <ScrollArea className={"links"}>
         <div className={"linksInner"}>{links}</div>
       </ScrollArea>
-
-      <div className={"footer"}>{/* <UserButton /> */}</div>
     </nav>
   );
 }

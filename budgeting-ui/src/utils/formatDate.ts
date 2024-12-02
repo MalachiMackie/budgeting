@@ -1,4 +1,4 @@
-export function formatDate(date: Date): string {
+export function formatDateForApi(date: Date): string {
   let sb: (string | number)[] = [date.getFullYear(), "-"];
   const month = date.getMonth() + 1;
   if (month < 10) {
